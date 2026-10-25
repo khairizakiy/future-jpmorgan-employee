@@ -3,11 +3,19 @@ import { motion, useMotionValue, useSpring, useTransform } from 'framer-motion'
 import MetallicKSculpture from './MetallicKSculpture.jsx'
 import { api } from '../api.js'
 
+function ensureAbsoluteUrl(url, fallback = '') {
+  const target = (url || fallback || '').trim()
+  if (!target) return ''
+  if (/^https?:\/\//i.test(target)) return target
+  return `https://${target}`
+}
+
 export default function ContactSection({ onBackToTop }) {
   const [copied, setCopied] = useState(false)
   const [emailAddress, setEmailAddress] = useState('khairizakiyn@gmail.com')
-  const [githubUrl, setGithubUrl] = useState('https://github.com')
-  const [linkedinUrl, setLinkedinUrl] = useState('https://linkedin.com')
+  const [instagramUrl, setInstagramUrl] = useState('https://instagram.com/zkiyngrh')
+  const [githubUrl, setGithubUrl] = useState('https://github.com/khairizakiy')
+  const [linkedinUrl, setLinkedinUrl] = useState('https://linkedin.com/in/khairinugroho')
 
   useEffect(() => {
     api
@@ -16,6 +24,7 @@ export default function ContactSection({ onBackToTop }) {
         if (p?.email) setEmailAddress(p.email)
         if (p?.github_url) setGithubUrl(p.github_url)
         if (p?.linkedin_url) setLinkedinUrl(p.linkedin_url)
+        if (p?.instagram_url || p?.x_url) setInstagramUrl(p.instagram_url || p.x_url)
       })
       .catch(() => {})
   }, [])
@@ -189,7 +198,7 @@ export default function ContactSection({ onBackToTop }) {
                         viewBox="0 0 24 24"
                         fill="none"
                         stroke="currentColor"
-                        strokeWidth="2"
+                        strokeWidth="2.5"
                         strokeLinecap="round"
                         strokeLinejoin="round"
                       >
@@ -210,7 +219,7 @@ export default function ContactSection({ onBackToTop }) {
           <div className="kjoy-bizcard-footer kjoy-bizcard-footer-clean">
             <div className="kjoy-social-links">
               <a
-                href={linkedinUrl || 'https://linkedin.com/in/khairinugroho'}
+                href={ensureAbsoluteUrl(linkedinUrl, 'https://linkedin.com/in/khairinugroho')}
                 target="_blank"
                 rel="noreferrer"
                 className="mono-micro kjoy-social-link"
@@ -218,7 +227,7 @@ export default function ContactSection({ onBackToTop }) {
                 LINKEDIN ↗
               </a>
               <a
-                href="https://instagram.com/zkiyngrh"
+                href={ensureAbsoluteUrl(instagramUrl, 'https://instagram.com/zkiyngrh')}
                 target="_blank"
                 rel="noreferrer"
                 className="mono-micro kjoy-social-link"
@@ -226,7 +235,7 @@ export default function ContactSection({ onBackToTop }) {
                 INSTAGRAM ↗
               </a>
               <a
-                href={githubUrl || 'https://github.com'}
+                href={ensureAbsoluteUrl(githubUrl, 'https://github.com/khairizakiy')}
                 target="_blank"
                 rel="noreferrer"
                 className="mono-micro kjoy-social-link"

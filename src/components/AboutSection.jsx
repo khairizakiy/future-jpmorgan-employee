@@ -77,6 +77,11 @@ export default function AboutSection() {
   const [isDeleting, setIsDeleting] = useState(false)
   const [photo, setPhoto] = useState('/uploads/khairinugroho.jpeg')
   const [photoLoaded, setPhotoLoaded] = useState(false)
+  const [bioSubtitle, setBioSubtitle] = useState('1 YEAR IN WEB DEVELOPMENT')
+  const [bioParagraphs, setBioParagraphs] = useState([
+    "I'm Khairi Nugroho, a vocational high school student driven by precision, discipline, and execution. Passionate about Formula 1 strategy, macroeconomics, finance, and market trading.",
+    "Currently available as a dependable everyday operator and virtual employee—handling Microsoft Excel data, Word documentation, research summarizing, and Personal Assistant operations."
+  ])
   const [services, setServices] = useState([])
   const [servicesLoading, setServicesLoading] = useState(true)
   const [awards, setAwards] = useState([])
@@ -97,6 +102,22 @@ export default function AboutSection() {
       .profile()
       .then((p) => {
         if (p?.photo) setPhoto(p.photo)
+      })
+      .catch(() => {})
+
+    api
+      .bio()
+      .then((b) => {
+        if (b) {
+          if (b.subtitle) setBioSubtitle(b.subtitle)
+          if (b.paragraph_1 || b.paragraph_2) {
+            setBioParagraphs([b.paragraph_1, b.paragraph_2].filter(Boolean))
+          } else if (Array.isArray(b.paragraphs) && b.paragraphs.length > 0) {
+            setBioParagraphs(b.paragraphs)
+          } else if (b.content) {
+            setBioParagraphs(b.content.split(/\r?\n\r?\n/).map((p) => p.trim()).filter(Boolean))
+          }
+        }
       })
       .catch(() => {})
 
@@ -195,18 +216,11 @@ export default function AboutSection() {
       {/* Row 1 — BIO (12-Column Grid, padding: 40px 0) */}
       <div className="kjoy-about-grid kjoy-about-row-bio">
         <div className="kjoy-col-1-2 kjoy-about-label">BIO</div>
-        <div className="kjoy-col-3-6 kjoy-about-subtitle">1 YEAR IN WEB DEVELOPMENT</div>
+        <div className="kjoy-col-3-6 kjoy-about-subtitle">{bioSubtitle}</div>
         <div className="kjoy-col-7-12 kjoy-bio-paragraphs body-sans">
-          <p>
-            I&apos;m Khairi Nugroho, a vocational high school student
-            driven by precision, discipline, and execution. Passionate about Formula 1 strategy,
-            macroeconomics, finance, and market trading.
-          </p>
-          <p>
-            Currently available as a dependable everyday operator and virtual employee—handling
-            Microsoft Excel data, Word documentation, research summarizing, and Personal Assistant
-            operations.
-          </p>
+          {bioParagraphs.map((p, idx) => (
+            <p key={idx}>{p}</p>
+          ))}
         </div>
       </div>
 

@@ -136,6 +136,52 @@ function serializeProjectDescription(b, cur = null) {
   return JSON.stringify(payload)
 }
 
+function normalizeSocialUrl(url) {
+  if (!url || typeof url !== 'string') return url
+  const trimmed = url.trim()
+  if (!trimmed) return ''
+  if (/^https?:\/\//i.test(trimmed)) return trimmed
+  return 'https://' + trimmed
+}
+
+
+const DEFAULT_BIO = {
+  id: 1,
+  subtitle: '1 YEAR IN WEB DEVELOPMENT',
+  paragraph_1: "I'm Khairi Nugroho, a vocational high school student driven by precision, discipline, and execution. Passionate about Formula 1 strategy, macroeconomics, finance, and market trading.",
+  paragraph_2: "Currently available as a dependable everyday operator and virtual employee—handling Microsoft Excel data, Word documentation, research summarizing, and Personal Assistant operations.",
+  content: "I'm Khairi Nugroho, a vocational high school student driven by precision, discipline, and execution. Passionate about Formula 1 strategy, macroeconomics, finance, and market trading.\n\nCurrently available as a dependable everyday operator and virtual employee—handling Microsoft Excel data, Word documentation, research summarizing, and Personal Assistant operations.",
+  paragraphs: [
+    "I'm Khairi Nugroho, a vocational high school student driven by precision, discipline, and execution. Passionate about Formula 1 strategy, macroeconomics, finance, and market trading.",
+    "Currently available as a dependable everyday operator and virtual employee—handling Microsoft Excel data, Word documentation, research summarizing, and Personal Assistant operations."
+  ]
+}
+
+function formatBio(row) {
+  if (!row) return { ...DEFAULT_BIO }
+  const p1 = (row.paragraph_1 !== undefined && row.paragraph_1 !== null && String(row.paragraph_1).trim() !== '')
+    ? row.paragraph_1
+    : DEFAULT_BIO.paragraph_1
+  const p2 = (row.paragraph_2 !== undefined && row.paragraph_2 !== null && String(row.paragraph_2).trim() !== '')
+    ? row.paragraph_2
+    : DEFAULT_BIO.paragraph_2
+
+  const paragraphs = [p1, p2].filter(Boolean)
+  const content = paragraphs.join('\n\n')
+
+  return {
+    ...row,
+    id: row.id || 1,
+    subtitle: row.subtitle || DEFAULT_BIO.subtitle,
+    paragraph_1: p1,
+    paragraph_2: p2,
+    content,
+    paragraphs
+  }
+}
+
+let localBioMemory = null
+
 export const db = {
   getMode: () => 'supabase',
 
@@ -148,37 +194,152 @@ export const db = {
       .limit(1)
       .maybeSingle()
     if (error) throw error
+    if (data) {
+      if (!data.instagram_url && data.x_url) {
+        data.instagram_url = data.x_url
+      }
+      if (data.linkedin_url) data.linkedin_url = normalizeSocialUrl(data.linkedin_url)
+      if (data.github_url) data.github_url = normalizeSocialUrl(data.github_url)
+      if (data.instagram_url) data.instagram_url = normalizeSocialUrl(data.instagram_url)
+      if (data.x_url) data.x_url = normalizeSocialUrl(data.x_url)
+    }
     return data
   },
 
   updateProfile: async (vals) => {
     const current = await db.getProfile()
+    const instagram = vals.instagram_url !== undefined
+      ? vals.instagram_url
+      : (vals.x_url !== undefined ? vals.x_url : (current?.instagram_url || current?.x_url || null))
+
     const payload = {
-      hero: vals.hero ?? null,
-      name: vals.name ?? '',
-      who_am_i: vals.who_am_i ?? '',
-      what_i_did: vals.what_i_did ?? '',
-      school: vals.school ?? '',
-      photo: vals.photo ?? null,
-      email: vals.email ?? null,
-      x_url: vals.x_url ?? null,
-      github_url: vals.github_url ?? null,
-      linkedin_url: vals.linkedin_url ?? null,
+      hero: vals.hero !== undefined ? vals.hero : (current?.hero ?? null),
+      name: vals.name !== undefined ? vals.name : (current?.name ?? ''),
+      who_am_i: vals.who_am_i !== undefined ? vals.who_am_i : (current?.who_am_i ?? ''),
+      what_i_did: vals.what_i_did !== undefined ? vals.what_i_did : (current?.what_i_did ?? ''),
+      school: vals.school !== undefined ? vals.school : (current?.school ?? ''),
+      photo: vals.photo !== undefined ? vals.photo : (current?.photo ?? null),
+      email: vals.email !== undefined ? vals.email : (current?.email ?? null),
+      x_url: instagram ? normalizeSocialUrl(instagram) : null,
+      github_url: vals.github_url !== undefined
+        ? (vals.github_url ? normalizeSocialUrl(vals.github_url) : null)
+        : (current?.github_url ?? null),
+      linkedin_url: vals.linkedin_url !== undefined
+        ? (vals.linkedin_url ? normalizeSocialUrl(vals.linkedin_url) : null)
+        : (current?.linkedin_url ?? null),
       updated_at: new Date().toISOString()
     }
+
+    let result = null
     if (current) {
-      const { data, error } = await supabase
+      const withInsta = { ...payload, instagram_url: payload.x_url }
+      const tryFirst = await supabase
         .from('profile')
-        .update(payload)
+        .update(withInsta)
         .eq('id', current.id)
         .select()
         .single()
-      if (error) throw error
-      return data
+
+      if (!tryFirst.error) {
+        result = tryFirst.data
+      } else {
+        const fallback = await supabase
+          .from('profile')
+          .update(payload)
+          .eq('id', current.id)
+          .select()
+          .single()
+        if (fallback.error) throw fallback.error
+        result = fallback.data
+      }
+    } else {
+      const withInsta = { ...payload, instagram_url: payload.x_url }
+      const tryFirst = await supabase.from('profile').insert(withInsta).select().single()
+      if (!tryFirst.error) {
+        result = tryFirst.data
+      } else {
+        const fallback = await supabase.from('profile').insert(payload).select().single()
+        if (fallback.error) throw fallback.error
+        result = fallback.data
+      }
     }
-    const { data, error } = await supabase.from('profile').insert(payload).select().single()
-    if (error) throw error
-    return data
+    if (result) {
+      result.instagram_url = result.instagram_url || result.x_url || null
+      if (result.linkedin_url) result.linkedin_url = normalizeSocialUrl(result.linkedin_url)
+      if (result.github_url) result.github_url = normalizeSocialUrl(result.github_url)
+    }
+    return result
+  },
+
+
+  // ---------- Bio (About Section) ----------
+  getBio: async () => {
+    try {
+      const { data, error } = await supabase
+        .from('bio')
+        .select('*')
+        .order('id', { ascending: true })
+        .limit(1)
+        .maybeSingle()
+
+      if (!error && data) {
+        return formatBio(data)
+      }
+      if (error) {
+        console.warn('[Supabase Bio Notice]', error.message)
+      }
+    } catch (err) {
+      console.warn('[Supabase Bio Fallback]', err.message)
+    }
+
+    if (localBioMemory) {
+      return formatBio(localBioMemory)
+    }
+
+    return { ...DEFAULT_BIO }
+  },
+
+  updateBio: async (vals) => {
+    const current = await db.getBio()
+    const subtitle = vals.subtitle !== undefined ? vals.subtitle : (current?.subtitle || DEFAULT_BIO.subtitle)
+    const p1 = vals.paragraph_1 !== undefined ? vals.paragraph_1 : (current?.paragraph_1 ?? DEFAULT_BIO.paragraph_1)
+    const p2 = vals.paragraph_2 !== undefined ? vals.paragraph_2 : (current?.paragraph_2 ?? DEFAULT_BIO.paragraph_2)
+    const content = vals.content !== undefined ? vals.content : [p1, p2].filter(Boolean).join('\n\n')
+
+    const payload = {
+      subtitle,
+      paragraph_1: p1,
+      paragraph_2: p2,
+      content,
+      updated_at: new Date().toISOString()
+    }
+
+    localBioMemory = { ...current, ...payload }
+
+    try {
+      const { data: existing, error: existErr } = await supabase.from('bio').select('id').limit(1).maybeSingle()
+      if (existing) {
+        const { data, error } = await supabase
+          .from('bio')
+          .update(payload)
+          .eq('id', existing.id)
+          .select()
+          .single()
+        if (error) throw error
+        return formatBio(data)
+      } else {
+        const { data, error } = await supabase
+          .from('bio')
+          .insert({ id: 1, ...payload })
+          .select()
+          .single()
+        if (error) throw error
+        return formatBio(data)
+      }
+    } catch (err) {
+      console.warn('[Supabase Bio Update Fallback]', err.message)
+      return formatBio(localBioMemory)
+    }
   },
 
   // ---------- Projects ----------

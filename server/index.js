@@ -89,6 +89,23 @@ app.put(
   })
 )
 
+// ---------- bio (about section) ----------
+app.get(
+  '/api/bio',
+  ah(async (_req, res) => {
+    const bio = await db.getBio()
+    res.json(bio)
+  })
+)
+
+app.put(
+  '/api/bio',
+  ah(async (req, res) => {
+    const updated = await db.updateBio(req.body || {})
+    res.json(updated)
+  })
+)
+
 app.post('/api/upload', upload.single('photo'), ah(async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file received' })
   const localPath = `/uploads/${req.file.filename}`
@@ -517,14 +534,16 @@ app.use(async (req, res, next) => {
     let html = await fs.promises.readFile(htmlPath, 'utf8')
 
     // 1. Fetch live database records for SSR injection
-    const [publishedProjects, profileData] = await Promise.all([
+    const [publishedProjects, profileData, bioData] = await Promise.all([
       db.getProjects(true).catch(() => []),
-      db.getProfile().catch(() => null)
+      db.getProfile().catch(() => null),
+      db.getBio().catch(() => null)
     ])
 
     const ssrState = {
       projects: publishedProjects || [],
       profile: profileData || null,
+      bio: bioData || null,
       dbMode: db.getMode(),
       ssrTimestamp: new Date().toISOString()
     }
