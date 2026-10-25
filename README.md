@@ -142,4 +142,4 @@ The project can be deployed to any Node.js hosting platform (e.g. **Render**, **
 ## Credits
 
 Built with precision by [Khairi Nugroho](https://github.com/khairizakiy)
-Special thanks to [Ricky Aldiansyah](https://github.com/rickymarove)
+Special thanks to [Ricky Marove](https://github.com/rickymarove)
