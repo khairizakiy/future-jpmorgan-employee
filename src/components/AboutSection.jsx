@@ -177,7 +177,7 @@ export default function AboutSection() {
           {charCount > 0 && (
             <text
               x="0"
-              y="330"
+              y="340"
               textAnchor="start"
               textLength={computedTextLength}
               lengthAdjust="spacingAndGlyphs"
