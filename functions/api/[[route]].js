@@ -44,6 +44,41 @@ function getSupabase(env) {
   })
 }
 
+const DEFAULT_BIO = {
+  id: 1,
+  subtitle: '1 YEAR IN WEB DEVELOPMENT',
+  paragraph_1: "I'm Khairi Nugroho, a vocational high school student driven by precision, discipline, and execution. Passionate about Formula 1 strategy, macroeconomics, finance, and market trading.",
+  paragraph_2: "Currently available as a dependable everyday operator and virtual employee—handling Microsoft Excel data, Word documentation, research summarizing, and Personal Assistant operations.",
+  content: "I'm Khairi Nugroho, a vocational high school student driven by precision, discipline, and execution. Passionate about Formula 1 strategy, macroeconomics, finance, and market trading.\n\nCurrently available as a dependable everyday operator and virtual employee—handling Microsoft Excel data, Word documentation, research summarizing, and Personal Assistant operations.",
+  paragraphs: [
+    "I'm Khairi Nugroho, a vocational high school student driven by precision, discipline, and execution. Passionate about Formula 1 strategy, macroeconomics, finance, and market trading.",
+    "Currently available as a dependable everyday operator and virtual employee—handling Microsoft Excel data, Word documentation, research summarizing, and Personal Assistant operations."
+  ]
+}
+
+function formatBio(row) {
+  if (!row) return { ...DEFAULT_BIO }
+  const p1 = (row.paragraph_1 !== undefined && row.paragraph_1 !== null)
+    ? row.paragraph_1
+    : DEFAULT_BIO.paragraph_1
+  const p2 = (row.paragraph_2 !== undefined && row.paragraph_2 !== null)
+    ? row.paragraph_2
+    : DEFAULT_BIO.paragraph_2
+
+  const paragraphs = [p1, p2].filter(Boolean)
+  const content = row.content || paragraphs.join('\n\n')
+
+  return {
+    ...row,
+    id: row.id || 1,
+    subtitle: row.subtitle || DEFAULT_BIO.subtitle,
+    paragraph_1: p1,
+    paragraph_2: p2,
+    content,
+    paragraphs
+  }
+}
+
 function formatProject(row) {
   if (!row) return null
   let cs = null
@@ -251,6 +286,66 @@ export async function onRequest(context) {
           const { data, error } = await supabase.from('profile').insert(payload).select().single()
           if (error) throw error
           return json(data)
+        }
+      }
+    }
+
+    // ---------- Bio (About Section) ----------
+    if (pathname === '/api/bio') {
+      if (method === 'GET') {
+        try {
+          const { data, error } = await supabase
+            .from('bio')
+            .select('*')
+            .order('id', { ascending: true })
+            .limit(1)
+            .maybeSingle()
+          if (!error && data) {
+            return json(formatBio(data))
+          }
+          return json(DEFAULT_BIO)
+        } catch {
+          return json(DEFAULT_BIO)
+        }
+      }
+      if (method === 'PUT') {
+        const vals = await request.json().catch(() => ({}))
+        const subtitle = vals.subtitle !== undefined ? vals.subtitle : DEFAULT_BIO.subtitle
+        const p1 = vals.paragraph_1 !== undefined ? vals.paragraph_1 : DEFAULT_BIO.paragraph_1
+        const p2 = vals.paragraph_2 !== undefined ? vals.paragraph_2 : ''
+        const content = vals.content !== undefined ? vals.content : [p1, p2].filter(Boolean).join('\n\n')
+
+        const payload = {
+          subtitle,
+          paragraph_1: p1,
+          paragraph_2: p2,
+          content,
+          updated_at: new Date().toISOString()
+        }
+
+        const { data: current } = await supabase
+          .from('bio')
+          .select('id')
+          .order('id', { ascending: true })
+          .limit(1)
+          .maybeSingle()
+
+        if (current) {
+          const { data, error } = await supabase
+            .from('bio')
+            .update(payload)
+            .eq('id', current.id)
+            .select()
+            .single()
+          if (error) throw error
+          return json(formatBio(data))
+        } else {
+          let res = await supabase.from('bio').insert({ id: 1, ...payload }).select().single()
+          if (res.error) {
+            res = await supabase.from('bio').insert(payload).select().single()
+          }
+          if (res.error) throw res.error
+          return json(formatBio(res.data))
         }
       }
     }

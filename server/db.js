@@ -159,10 +159,10 @@ const DEFAULT_BIO = {
 
 function formatBio(row) {
   if (!row) return { ...DEFAULT_BIO }
-  const p1 = (row.paragraph_1 !== undefined && row.paragraph_1 !== null && String(row.paragraph_1).trim() !== '')
+  const p1 = (row.paragraph_1 !== undefined && row.paragraph_1 !== null)
     ? row.paragraph_1
     : DEFAULT_BIO.paragraph_1
-  const p2 = (row.paragraph_2 !== undefined && row.paragraph_2 !== null && String(row.paragraph_2).trim() !== '')
+  const p2 = (row.paragraph_2 !== undefined && row.paragraph_2 !== null)
     ? row.paragraph_2
     : DEFAULT_BIO.paragraph_2
 
