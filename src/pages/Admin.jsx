@@ -56,11 +56,21 @@ export default function Admin() {
     school: '',
     photo: null,
     email: '',
+    instagram_url: '',
     x_url: '',
     github_url: '',
     linkedin_url: ''
   })
   const [uploadingPhoto, setUploadingPhoto] = useState(false)
+
+  // About Section Bio State (Supabase public.bio)
+  const [bio, setBio] = useState({
+    subtitle: '1 YEAR IN WEB DEVELOPMENT',
+    paragraph_1: "I'm Khairi Nugroho, a vocational high school student driven by precision, discipline, and execution. Passionate about Formula 1 strategy, macroeconomics, finance, and market trading.",
+    paragraph_2: "Currently available as a dependable everyday operator and virtual employee—handling Microsoft Excel data, Word documentation, research summarizing, and Personal Assistant operations.",
+    content: ''
+  })
+  const [savingBio, setSavingBio] = useState(false)
 
   // Services & Awards State
   const [servicesList, setServicesList] = useState([])
@@ -112,14 +122,28 @@ export default function Admin() {
       api.profile(),
       api.services('all'),
       api.awards('all'),
-      api.pictures('all')
+      api.pictures('all'),
+      api.bio()
     ])
-      .then(([prList, prof, sList, aList, picList]) => {
+      .then(([prList, prof, sList, aList, picList, bioData]) => {
         if (Array.isArray(prList)) setProjects(prList)
-        if (prof) setProfile(prof)
+        if (prof) {
+          setProfile({
+            ...prof,
+            instagram_url: prof.instagram_url || prof.x_url || ''
+          })
+        }
         if (Array.isArray(sList)) setServicesList(sList)
         if (Array.isArray(aList)) setAwardsList(aList)
         if (Array.isArray(picList)) setPicturesList(picList)
+        if (bioData) {
+          setBio({
+            subtitle: bioData.subtitle || '1 YEAR IN WEB DEVELOPMENT',
+            paragraph_1: bioData.paragraph_1 || '',
+            paragraph_2: bioData.paragraph_2 || '',
+            content: bioData.content || ''
+          })
+        }
       })
       .catch((err) => showToast(err.message, true))
   }
@@ -405,15 +429,67 @@ export default function Admin() {
     }
   }
 
+  // Normalize external URLs to include https:// if missing
+  const normalizeUrl = (url) => {
+    if (!url || typeof url !== 'string') return ''
+    const trimmed = url.trim()
+    if (!trimmed) return ''
+    if (/^https?:\/\//i.test(trimmed)) return trimmed
+    return `https://${trimmed}`
+  }
+
   // Save Profile Info
   const handleSaveProfile = async (e) => {
     e.preventDefault()
     try {
-      const updated = await api.updateProfile(profile)
-      setProfile(updated)
+      const ig = normalizeUrl(profile.instagram_url || profile.x_url || '')
+      const gh = normalizeUrl(profile.github_url || '')
+      const li = normalizeUrl(profile.linkedin_url || '')
+
+      const payload = {
+        ...profile,
+        instagram_url: ig,
+        x_url: ig,
+        github_url: gh,
+        linkedin_url: li
+      }
+      const updated = await api.updateProfile(payload)
+      setProfile((prev) => ({
+        ...prev,
+        ...updated,
+        instagram_url: updated.instagram_url || updated.x_url || prev.instagram_url
+      }))
       showToast('Profile information saved.')
     } catch (ex) {
       showToast(ex.message || 'Failed to save profile', true)
+    }
+  }
+
+  // Save About Section Bio (Supabase public.bio)
+  const handleSaveBio = async (e) => {
+    e.preventDefault()
+    setSavingBio(true)
+    try {
+      const payload = {
+        subtitle: bio.subtitle || '1 YEAR IN WEB DEVELOPMENT',
+        paragraph_1: bio.paragraph_1 || '',
+        paragraph_2: bio.paragraph_2 || '',
+        content: [bio.paragraph_1, bio.paragraph_2].filter(Boolean).join('\n\n')
+      }
+      const updated = await api.updateBio(payload)
+      if (updated) {
+        setBio({
+          subtitle: updated.subtitle || payload.subtitle,
+          paragraph_1: updated.paragraph_1 || payload.paragraph_1,
+          paragraph_2: updated.paragraph_2 || payload.paragraph_2,
+          content: updated.content || payload.content
+        })
+      }
+      showToast('About Section Bio saved and synced to Supabase!')
+    } catch (ex) {
+      showToast(ex.message || 'Failed to save bio', true)
+    } finally {
+      setSavingBio(false)
     }
   }
 
@@ -1438,7 +1514,8 @@ export default function Admin() {
 
         {/* ================= TAB 2: PROFILE & BIO ================= */}
         {activeTab === 'profile' && (
-          <div className="nb-card">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
+            <div className="nb-card">
             <div className="nb-card-header">
               <div>
                 <h2 className="nb-card-title">[MY IDENTITY &amp; BIO PROFILE]</h2>
@@ -1544,13 +1621,19 @@ export default function Admin() {
 
                 {/* Social Links */}
                 <div className="nb-form-group">
-                  <label className="nb-label">X / TWITTER URL</label>
+                  <label className="nb-label">INSTAGRAM URL</label>
                   <input
                     type="text"
                     className="nb-input"
-                    value={profile.x_url || ''}
-                    onChange={(e) => setProfile({ ...profile, x_url: e.target.value })}
-                    placeholder="https://x.com/..."
+                    value={profile.instagram_url ?? profile.x_url ?? ''}
+                    onChange={(e) =>
+                      setProfile({
+                        ...profile,
+                        instagram_url: e.target.value,
+                        x_url: e.target.value
+                      })
+                    }
+                    placeholder="https://instagram.com/..."
                   />
                 </div>
 
@@ -1584,7 +1667,91 @@ export default function Admin() {
               </div>
             </form>
           </div>
-        )}
+
+          {/* ================= ABOUT SECTION BIO CARD ================= */}
+          <div className="nb-card">
+            <div className="nb-card-header">
+              <div>
+                <div className="mono-micro" style={{ color: 'var(--color-burgundy-accent, #cf352e)', letterSpacing: '0.15em', marginBottom: '4px' }}>
+                  ABOUT SECTION // SUPABASE SYNC (public.bio)
+                </div>
+                <h2 className="nb-card-title">[ABOUT SECTION: BIO CONTENT]</h2>
+                <p className="mono-micro" style={{ color: 'rgba(250, 248, 245, 0.5)', marginTop: '4px' }}>
+                  Manage the live Subtitle and Bio Paragraphs rendered in the About Section on the homepage.
+                </p>
+              </div>
+            </div>
+
+            <form onSubmit={handleSaveBio}>
+              <div className="nb-form-grid">
+                <div className="nb-form-group" style={{ gridColumn: 'span 2' }}>
+                  <label className="nb-label">ABOUT BIO SUBTITLE</label>
+                  <input
+                    type="text"
+                    className="nb-input"
+                    value={bio.subtitle || ''}
+                    onChange={(e) => setBio({ ...bio, subtitle: e.target.value })}
+                    placeholder="e.g. 1 YEAR IN WEB DEVELOPMENT"
+                    required
+                  />
+                  <span className="mono-micro" style={{ color: 'rgba(250, 248, 245, 0.4)', marginTop: '4px', display: 'block' }}>
+                    Shown directly adjacent to &quot;BIO&quot; on the About grid.
+                  </span>
+                </div>
+
+                <div className="nb-form-group" style={{ gridColumn: 'span 2' }}>
+                  <label className="nb-label">BIO PARAGRAPH 1 (INTRO &amp; PASSIONS)</label>
+                  <textarea
+                    className="nb-textarea"
+                    style={{ minHeight: '90px' }}
+                    value={bio.paragraph_1 || ''}
+                    onChange={(e) => setBio({ ...bio, paragraph_1: e.target.value })}
+                    placeholder="First paragraph of your bio in the About Section..."
+                    required
+                  />
+                </div>
+
+                <div className="nb-form-group" style={{ gridColumn: 'span 2' }}>
+                  <label className="nb-label">BIO PARAGRAPH 2 (OPERATIONS &amp; WORK AVAILABILITY)</label>
+                  <textarea
+                    className="nb-textarea"
+                    style={{ minHeight: '90px' }}
+                    value={bio.paragraph_2 || ''}
+                    onChange={(e) => setBio({ ...bio, paragraph_2: e.target.value })}
+                    placeholder="Second paragraph of your bio in the About Section..."
+                  />
+                </div>
+              </div>
+
+              {/* Preview Box */}
+              <div style={{
+                marginTop: '20px',
+                padding: '16px 20px',
+                border: '1px solid rgba(250, 248, 245, 0.1)',
+                background: 'rgba(0, 0, 0, 0.25)',
+                borderRadius: '4px'
+              }}>
+                <div className="mono-micro" style={{ color: 'rgba(250, 248, 245, 0.5)', marginBottom: '8px', letterSpacing: '0.1em' }}>
+                  PREVIEW IN ABOUT SECTION:
+                </div>
+                <div style={{ fontSize: '11px', letterSpacing: '0.08em', fontWeight: 600, color: 'var(--color-burgundy-accent, #cf352e)', marginBottom: '8px' }}>
+                  {bio.subtitle || '1 YEAR IN WEB DEVELOPMENT'}
+                </div>
+                <div style={{ fontSize: '13px', lineHeight: '1.6', color: 'rgba(250, 248, 245, 0.85)' }}>
+                  {bio.paragraph_1 && <p style={{ margin: '0 0 8px 0' }}>{bio.paragraph_1}</p>}
+                  {bio.paragraph_2 && <p style={{ margin: '0' }}>{bio.paragraph_2}</p>}
+                </div>
+              </div>
+
+              <div style={{ marginTop: '24px', paddingTop: '18px', borderTop: '1px solid rgba(250, 248, 245, 0.14)' }}>
+                <button type="submit" className="nb-btn nb-btn-primary" disabled={savingBio}>
+                  {savingBio ? 'SAVING TO SUPABASE…' : 'SAVE ABOUT BIO ✓'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
         {/* ================= TAB 3: SERVICES & AWARDS ================= */}
         {activeTab === 'services' && (
