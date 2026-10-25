@@ -10,7 +10,8 @@
     "client": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "supabase:check": "node tools/migrate-to-supabase.js"
+    "supabase:check": "node tools/migrate-to-supabase.js",
+    "pages:deploy": "vite build && wrangler pages deploy dist --project-name khairi"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.118.0",

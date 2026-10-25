@@ -77,10 +77,6 @@ SUPABASE_URL=https://your-project-id.supabase.co
 SUPABASE_ANON_KEY=your-anon-publishable-key
 SUPABASE_SERVICE_ROLE_KEY=your-service-role-secret-key
 
-# Client Vite Environment
-VITE_SUPABASE_URL=https://your-project-id.supabase.co
-VITE_SUPABASE_ANON_KEY=your-anon-publishable-key
-
 # API & SSR Server
 PORT=4000
 JWT_SECRET=your-secure-jwt-secret
