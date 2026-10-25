@@ -1,4 +1,4 @@
-# Future JP Morgan President Khairi Nugroho Folio
+# Future JP Morgan President Khairi "Zakiy" Nugroho Folio
 
 Hi, this is my personal portfolio website built in the Swiss Style with Neo-Brutalist architecture. It combines **React**, **Vite**, and an **Express** server integrated directly with **Supabase** for database records and media storage.
 
