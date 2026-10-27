@@ -72,6 +72,8 @@ export const api = {
   deleteProject: (id) => call(`/api/projects/${id}`, 'DELETE'),
 
   music: () => call('/api/music'),
+  musicMoods: () => call('/api/music/moods'),
+  updateMusicMoods: (moods) => call('/api/music/moods', 'PUT', { moods }),
   createMusicAlbum: (d) => call('/api/music', 'POST', d),
   updateMusicAlbum: (id, d) => call(`/api/music/${id}`, 'PUT', d),
   deleteMusicAlbum: (id) => call(`/api/music/${id}`, 'DELETE'),

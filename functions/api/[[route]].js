@@ -72,6 +72,44 @@ const DEFAULT_BIO = {
   ]
 }
 
+const DEFAULT_MOODS = {
+  'lock-in': {
+    title: 'Lock In',
+    headliners: 'Aphex Twin, Floating Points',
+    description: 'Polyrhythms and high-tempo modular synthesis for deep flow states. Also listening to: Four Tet, Jon Hopkins, Bicep, Overmono.'
+  },
+  'study': {
+    title: 'Study',
+    headliners: 'Nils Frahm, Brian Eno',
+    description: 'Tactile felt piano, tape echoes, spatial acoustics. Also listening to: Harold Budd, Max Richter, Hania Rani.'
+  },
+  'game': {
+    title: 'Game',
+    headliners: 'Disasterpeace, Mick Gordon',
+    description: 'Chiptune architecture and sub-octave drive. Also listening to: Lena Raine, Darren Korb, HEALTH.'
+  },
+  'drive': {
+    title: 'Night Drive',
+    headliners: 'Deftones, Kavinsky',
+    description: 'Low-end punch through the Tiguan’s subwoofer on coastal 101. Also listening to: Gunship, The Midnight, Chromatics.'
+  }
+}
+
+function extractMoods(records) {
+  const moodRow = (records || []).find((r) => r.tag === '__MOODS__' || r.title === '__MOODS__')
+  if (moodRow && moodRow.note) {
+    try {
+      const parsed = JSON.parse(moodRow.note)
+      if (parsed && typeof parsed === 'object' && Object.keys(parsed).length > 0) {
+        return parsed
+      }
+    } catch (e) {
+      console.warn('Failed to parse moods JSON:', e)
+    }
+  }
+  return { ...DEFAULT_MOODS }
+}
+
 function formatBio(row) {
   if (!row) return { ...DEFAULT_BIO }
   const p1 = (row.paragraph_1 !== undefined && row.paragraph_1 !== null && String(row.paragraph_1).trim() !== '')
@@ -260,16 +298,14 @@ export async function onRequest(context) {
       const bio = formatBio(bioData)
       const projects = (projData || []).map(formatProject)
       const experiences = (expData || []).map(formatExperience)
+      const rawMusData = musData || []
+      const moods = extractMoods(rawMusData)
+      const albums = rawMusData.filter((r) => r.tag !== '__MOODS__' && r.title !== '__MOODS__').map(formatMusic)
       const music = {
-        total_albums: (musData || []).length,
+        total_albums: albums.length,
         current_status: 'playing • 1.0x',
-        albums: (musData || []).map(formatMusic),
-        moods: {
-          'lock-in': { title: 'Lock In', headliners: 'Aphex Twin, Floating Points', description: 'Polyrhythms and high-tempo modular synthesis for deep flow states.' },
-          'study': { title: 'Study', headliners: 'Nils Frahm, Brian Eno', description: 'Tactile felt piano, tape echoes, spatial acoustics.' },
-          'game': { title: 'Game', headliners: 'Disasterpeace, Mick Gordon', description: 'Chiptune architecture and sub-octave drive.' },
-          'drive': { title: 'Night Drive', headliners: 'Deftones, Kavinsky', description: 'Low-end punch through the Tiguan’s subwoofer on coastal 101.' }
-        }
+        albums,
+        moods
       }
       const tiguan = tigData || {
         title: '2021 Volkswagen Tiguan R-Line (MQB platform)',
@@ -524,21 +560,69 @@ export async function onRequest(context) {
       }
     }
 
+    // ---------- Music Moods ----------
+    if (pathname === '/api/music/moods') {
+      if (method === 'GET') {
+        const { data, error } = await supabase.from('music').select('*').eq('tag', '__MOODS__').maybeSingle()
+        if (error) throw error
+        let moods = { ...DEFAULT_MOODS }
+        if (data && data.note) {
+          try {
+            const parsed = JSON.parse(data.note)
+            if (parsed && typeof parsed === 'object' && Object.keys(parsed).length > 0) {
+              moods = parsed
+            }
+          } catch {}
+        }
+        return json({ moods })
+      }
+      if (method === 'PUT' || method === 'POST') {
+        const b = await request.json().catch(() => ({}))
+        const moods = b.moods || b
+        const serialized = JSON.stringify(moods)
+
+        const { data: existing } = await supabase.from('music').select('id').eq('tag', '__MOODS__').maybeSingle()
+        if (existing?.id) {
+          const { error } = await supabase.from('music').update({
+            title: '__MOODS__',
+            artist: 'System',
+            tag: '__MOODS__',
+            note: serialized,
+            published: false
+          }).eq('id', existing.id)
+          if (error) throw error
+        } else {
+          const { error } = await supabase.from('music').insert({
+            title: '__MOODS__',
+            artist: 'System',
+            year: '2026',
+            genre: 'Config',
+            tag: '__MOODS__',
+            note: serialized,
+            gradient: 'linear-gradient(135deg, #000, #111)',
+            row_index: 0,
+            order_index: 9999,
+            published: false
+          })
+          if (error) throw error
+        }
+        return json({ ok: true, moods })
+      }
+    }
+
     // ---------- Music ----------
     if (pathname === '/api/music') {
       if (method === 'GET') {
         const { data, error } = await supabase.from('music').select('*').order('order_index', { ascending: true })
         if (error) throw error
+        const rawData = data || []
+        const moods = extractMoods(rawData)
+        const albums = rawData.filter((r) => r.tag !== '__MOODS__' && r.title !== '__MOODS__').map(formatMusic)
         return json({
-          total_albums: (data || []).length,
+          total_albums: albums.length,
           current_status: 'playing • 1.0x',
-          albums: (data || []).map(formatMusic),
-          moods: {
-            'lock-in': { title: 'Lock In', headliners: 'Aphex Twin, Floating Points', description: 'Polyrhythms and high-tempo modular synthesis for deep flow states.' },
-            'study': { title: 'Study', headliners: 'Nils Frahm, Brian Eno', description: 'Tactile felt piano, tape echoes, spatial acoustics.' },
-            'game': { title: 'Game', headliners: 'Disasterpeace, Mick Gordon', description: 'Chiptune architecture and sub-octave drive.' },
-            'drive': { title: 'Night Drive', headliners: 'Deftones, Kavinsky', description: 'Low-end punch through the Tiguan’s subwoofer on coastal 101.' }
-          }
+          albums,
+          moods
         })
       }
       if (method === 'POST') {

@@ -388,6 +388,79 @@ export default function Admin() {
     }
   }
 
+  // Artists by Mood state & handlers
+  const DEFAULT_MOODS = {
+    'lock-in': { title: 'Lock In', headliners: 'Aphex Twin, Floating Points', description: 'Polyrhythms and high-tempo modular synthesis for deep flow states. Also listening to: Four Tet, Jon Hopkins, Bicep, Overmono.' },
+    'study': { title: 'Study', headliners: 'Nils Frahm, Brian Eno', description: 'Tactile felt piano, tape echoes, spatial acoustics. Also listening to: Harold Budd, Max Richter, Hania Rani.' },
+    'game': { title: 'Game', headliners: 'Disasterpeace, Mick Gordon', description: 'Chiptune architecture and sub-octave drive. Also listening to: Lena Raine, Darren Korb, HEALTH.' },
+    'drive': { title: 'Night Drive', headliners: 'Deftones, Kavinsky', description: 'Low-end punch through the Tiguan’s subwoofer on coastal 101. Also listening to: Gunship, The Midnight, Chromatics.' }
+  }
+  const [moods, setMoods] = useState(DEFAULT_MOODS)
+  const [savingMoods, setSavingMoods] = useState(false)
+  const [newMoodKey, setNewMoodKey] = useState('')
+  const [newMoodTitle, setNewMoodTitle] = useState('')
+
+  const handleMoodFieldChange = (key, field, val) => {
+    setMoods((prev) => ({
+      ...prev,
+      [key]: {
+        ...prev[key],
+        [field]: val
+      }
+    }))
+  }
+
+  const handleAddMood = (e) => {
+    e.preventDefault()
+    const cleanKey = newMoodKey.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '-')
+    if (!cleanKey) {
+      showToast('Please enter an identifier key (e.g. ambient, workout)', true)
+      return
+    }
+    if (moods[cleanKey]) {
+      showToast(`Mood key "${cleanKey}" already exists`, true)
+      return
+    }
+    const title = newMoodTitle.trim() || cleanKey.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
+    setMoods((prev) => ({
+      ...prev,
+      [cleanKey]: {
+        title,
+        headliners: '',
+        description: ''
+      }
+    }))
+    setNewMoodKey('')
+    setNewMoodTitle('')
+    showToast(`Added mood tab "${title}". Click "SAVE ALL MOODS" to persist.`)
+  }
+
+  const handleRemoveMood = (key) => {
+    if (Object.keys(moods).length <= 1) {
+      showToast('You must keep at least one mood category.', true)
+      return
+    }
+    if (!window.confirm(`Delete mood "${moods[key]?.title || key}"?`)) return
+    setMoods((prev) => {
+      const next = { ...prev }
+      delete next[key]
+      return next
+    })
+    showToast(`Removed mood "${key}". Click "SAVE ALL MOODS" to persist.`)
+  }
+
+  const handleSaveMoods = async () => {
+    setSavingMoods(true)
+    try {
+      await api.updateMusicMoods(moods)
+      showToast('Artists by Mood updated in Supabase.')
+    } catch (err) {
+      showToast(err.message || 'Failed to save moods', true)
+    } finally {
+      setSavingMoods(false)
+    }
+  }
+
   // ----------------------------------------------------
   // SECTION 5: TIGUAN
   // ----------------------------------------------------
@@ -601,6 +674,7 @@ export default function Admin() {
       if (Array.isArray(expList)) setExperiencesList(expList)
       if (Array.isArray(projList)) setProjectsList(projList)
       if (musicRes?.albums) setMusicAlbums(musicRes.albums)
+      if (musicRes?.moods && Object.keys(musicRes.moods).length > 0) setMoods(musicRes.moods)
       if (tiguanRes && tiguanRes.title) setTiguan(tiguanRes)
       if (friendsRes?.photos) setFriendsPhotos(friendsRes.photos)
       if (catRes && catRes.name) setCat(catRes)
@@ -1843,6 +1917,120 @@ export default function Admin() {
                 </div>
               ))}
             </div>
+          </div>
+
+          {/* Artists by Mood Editor */}
+          <div className="cmd-box" id="section-admin-moods">
+            <div className="flex flex-wrap items-center justify-between gap-2 pb-2 mb-3 border-b border-[#e2e0d8]">
+              <div>
+                <div className="cmd-header !p-0">music // artists by mood</div>
+                <div className="text-xs text-on-surface-variant font-mono">
+                  Configure mood tabs, headliner artist callouts, and mood descriptions displayed on <a href="/music" className="underline font-mono">/music</a>.
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={handleSaveMoods}
+                disabled={savingMoods}
+                className="admin-btn-primary"
+              >
+                {savingMoods ? 'SAVING MOODS…' : 'SAVE ALL MOODS →'}
+              </button>
+            </div>
+
+            {/* List of Moods */}
+            <div className="space-y-3 mb-4">
+              {Object.entries(moods).map(([key, mood]) => (
+                <div key={key} className="item-card bg-[#fbfbfa] p-3 border border-[#dedcd5] rounded-sm space-y-2">
+                  <div className="flex items-center justify-between gap-2 border-b border-[#eeece6] pb-2">
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono text-[11px] font-bold text-terminal-prompt px-2 py-0.5 bg-[#eae8e0] rounded-xs">
+                        id: {key}
+                      </span>
+                      <span className="text-xs font-semibold text-on-surface">
+                        {mood.title || key}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveMood(key)}
+                      className="admin-btn-danger text-[10px]"
+                      title="Remove this mood"
+                    >
+                      Remove ✕
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="admin-label">Tab Title</label>
+                      <input
+                        type="text"
+                        className="admin-input"
+                        value={mood.title || ''}
+                        onChange={(e) => handleMoodFieldChange(key, 'title', e.target.value)}
+                        placeholder="e.g. Lock In, Night Drive"
+                      />
+                    </div>
+                    <div>
+                      <label className="admin-label">Headliners (Bold text prompt)</label>
+                      <input
+                        type="text"
+                        className="admin-input"
+                        value={mood.headliners || ''}
+                        onChange={(e) => handleMoodFieldChange(key, 'headliners', e.target.value)}
+                        placeholder="e.g. Aphex Twin, Floating Points"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="admin-label">Description / Artists Context</label>
+                    <textarea
+                      className="admin-input"
+                      rows={2}
+                      value={mood.description || ''}
+                      onChange={(e) => handleMoodFieldChange(key, 'description', e.target.value)}
+                      placeholder="Polyrhythms and high-tempo modular synthesis for deep flow states..."
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Add New Mood */}
+            <form onSubmit={handleAddMood} className="p-3 bg-white border border-dashed border-[#c8c6be] rounded-sm space-y-2">
+              <div className="text-xs font-semibold text-on-surface font-mono">
+                + Add New Mood Tab
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <div>
+                  <label className="admin-label">Mood Identifier Key * (e.g. ambient, workout)</label>
+                  <input
+                    type="text"
+                    className="admin-input"
+                    value={newMoodKey}
+                    onChange={(e) => setNewMoodKey(e.target.value)}
+                    placeholder="ambient"
+                  />
+                </div>
+                <div>
+                  <label className="admin-label">Tab Label Title (e.g. Deep Ambient)</label>
+                  <input
+                    type="text"
+                    className="admin-input"
+                    value={newMoodTitle}
+                    onChange={(e) => setNewMoodTitle(e.target.value)}
+                    placeholder="Deep Ambient"
+                  />
+                </div>
+              </div>
+              <div className="flex justify-end pt-1">
+                <button type="submit" className="link-badge font-mono text-xs !py-1 px-3">
+                  + Add Mood Tab
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

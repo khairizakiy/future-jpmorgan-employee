@@ -308,6 +308,17 @@ app.delete('/api/experiences/:id', ah(async (req, res) => {
 }))
 
 // ---------- music ----------
+app.get('/api/music/moods', ah(async (_req, res) => {
+  const music = await db.getMusic()
+  res.json({ moods: music.moods || {} })
+}))
+
+app.put('/api/music/moods', ah(async (req, res) => {
+  const moods = req.body?.moods || req.body || {}
+  const saved = await db.updateMusicMoods(moods)
+  res.json({ ok: true, moods: saved })
+}))
+
 app.get('/api/music', ah(async (_req, res) => {
   const music = await db.getMusic()
   res.json(music)

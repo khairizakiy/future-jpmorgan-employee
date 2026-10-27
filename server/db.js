@@ -798,6 +798,12 @@ export const db = {
 
   // ---------- Music ----------
   getMusic: async () => {
+    const DEFAULT_MOODS = {
+      'lock-in': { title: 'Lock In', headliners: 'Aphex Twin, Floating Points', description: 'Polyrhythms and high-tempo modular synthesis for deep flow states. Also listening to: Four Tet, Jon Hopkins, Bicep, Overmono.' },
+      'study': { title: 'Study', headliners: 'Nils Frahm, Brian Eno', description: 'Tactile felt piano, tape echoes, spatial acoustics. Also listening to: Harold Budd, Max Richter, Hania Rani.' },
+      'game': { title: 'Game', headliners: 'Disasterpeace, Mick Gordon', description: 'Chiptune architecture and sub-octave drive. Also listening to: Lena Raine, Darren Korb, HEALTH.' },
+      'drive': { title: 'Night Drive', headliners: 'Deftones, Kavinsky', description: 'Low-end punch through the Tiguan’s subwoofer on coastal 101. Also listening to: Gunship, The Midnight, Chromatics.' }
+    }
     const mapAlbum = (a) => ({
       ...a,
       image: a.image || a.cover || (a.gradient && (a.gradient.startsWith('http') || a.gradient.startsWith('/uploads')) ? a.gradient : null)
@@ -806,24 +812,69 @@ export const db = {
       const { data, error } = await supabase.from('music').select('*').order('order_index', { ascending: true })
       if (!error && Array.isArray(data) && data.length > 0) {
         const local = db.getLocalData()
+        const moodRow = data.find((r) => r.tag === '__MOODS__' || r.title === '__MOODS__')
+        let moods = { ...DEFAULT_MOODS, ...(local.music?.moods || {}) }
+        if (moodRow && moodRow.note) {
+          try {
+            const parsed = JSON.parse(moodRow.note)
+            if (parsed && typeof parsed === 'object') moods = parsed
+          } catch {}
+        }
+        const albums = data.filter((r) => r.tag !== '__MOODS__' && r.title !== '__MOODS__').map(mapAlbum)
         return {
-          total_albums: data.length,
+          total_albums: albums.length,
           current_status: local.music?.current_status || 'playing • 1.0x',
-          albums: data.map(mapAlbum),
-          moods: local.music?.moods || {}
+          albums,
+          moods
         }
       }
     } catch (err) {
       console.warn('[Supabase Music Notice]', err.message)
     }
     const local = db.getLocalData()
-    const fallbackAlbums = (local.music?.albums || []).map(mapAlbum)
+    const fallbackAlbums = (local.music?.albums || []).filter((r) => r.tag !== '__MOODS__' && r.title !== '__MOODS__').map(mapAlbum)
     return {
       total_albums: fallbackAlbums.length,
       current_status: local.music?.current_status || 'playing • 1.0x',
       albums: fallbackAlbums,
-      moods: local.music?.moods || {}
+      moods: local.music?.moods || DEFAULT_MOODS
     }
+  },
+
+  updateMusicMoods: async (moods) => {
+    const serialized = JSON.stringify(moods)
+    try {
+      const { data: existing } = await supabase.from('music').select('id').eq('tag', '__MOODS__').maybeSingle()
+      if (existing?.id) {
+        await supabase.from('music').update({
+          title: '__MOODS__',
+          artist: 'System',
+          tag: '__MOODS__',
+          note: serialized,
+          published: false
+        }).eq('id', existing.id)
+      } else {
+        await supabase.from('music').insert({
+          title: '__MOODS__',
+          artist: 'System',
+          year: '2026',
+          genre: 'Config',
+          tag: '__MOODS__',
+          note: serialized,
+          gradient: 'linear-gradient(135deg, #000, #111)',
+          row_index: 0,
+          order_index: 9999,
+          published: false
+        })
+      }
+    } catch (err) {
+      console.warn('[Supabase updateMusicMoods error]', err.message)
+    }
+    const local = db.getLocalData()
+    if (!local.music) local.music = {}
+    local.music.moods = moods
+    db.saveLocalData(local)
+    return moods
   },
 
   updateMusicAlbum: async (id, b) => {

@@ -25,6 +25,13 @@ function AlbumCover({ album, className = 'w-10 h-10', textClass = 'text-[11px]' 
   )
 }
 
+const DEFAULT_MOODS = {
+  'lock-in': { title: 'Lock In', headliners: 'Aphex Twin, Floating Points', description: 'Polyrhythms and high-tempo modular synthesis for deep flow states. Also listening to: Four Tet, Jon Hopkins, Bicep, Overmono.' },
+  'study': { title: 'Study', headliners: 'Nils Frahm, Brian Eno', description: 'Tactile felt piano, tape echoes, spatial acoustics. Also listening to: Harold Budd, Max Richter, Hania Rani.' },
+  'game': { title: 'Game', headliners: 'Disasterpeace, Mick Gordon', description: 'Chiptune architecture and sub-octave drive. Also listening to: Lena Raine, Darren Korb, HEALTH.' },
+  'drive': { title: 'Night Drive', headliners: 'Deftones, Kavinsky', description: 'Low-end punch through the Tiguan’s subwoofer on coastal 101. Also listening to: Gunship, The Midnight, Chromatics.' }
+}
+
 export default function MusicPage() {
   const [musicData, setMusicData] = useState(() => {
     if (typeof window !== 'undefined' && window.__INITIAL_DATA__?.music) {
@@ -37,6 +44,11 @@ export default function MusicPage() {
   const [speed, setSpeed] = useState('1.0') // '0.5' | '1.0' | '1.5'
   const [activeMood, setActiveMood] = useState('lock-in')
   const [selectedAlbum, setSelectedAlbum] = useState(null)
+
+  const moods = (musicData?.moods && Object.keys(musicData.moods).length > 0) ? musicData.moods : DEFAULT_MOODS
+  const moodKeys = Object.keys(moods)
+  const activeMoodKey = moods[activeMood] ? activeMood : moodKeys[0] || 'lock-in'
+  const activeMoodItem = moods[activeMoodKey]
 
   useEffect(() => {
     document.title = 'Khairi Nugroho — Music'
@@ -446,74 +458,30 @@ export default function MusicPage() {
           <div className="flex flex-wrap items-center justify-between gap-2 pb-2 mb-2 border-b border-[#e2e0d8]">
             <span className="text-xs font-semibold text-on-surface">Artists by Mood</span>
             <div className="flex flex-wrap gap-1" id="mood-tabs">
-              <button
-                className={`tab-btn text-[10px] py-0.5 px-2 ${activeMood === 'lock-in' ? 'active' : ''}`}
-                onClick={() => setActiveMood('lock-in')}
-              >
-                Lock In
-              </button>
-              <button
-                className={`tab-btn text-[10px] py-0.5 px-2 ${activeMood === 'study' ? 'active' : ''}`}
-                onClick={() => setActiveMood('study')}
-              >
-                Study
-              </button>
-              <button
-                className={`tab-btn text-[10px] py-0.5 px-2 ${activeMood === 'game' ? 'active' : ''}`}
-                onClick={() => setActiveMood('game')}
-              >
-                Game
-              </button>
-              <button
-                className={`tab-btn text-[10px] py-0.5 px-2 ${activeMood === 'drive' ? 'active' : ''}`}
-                onClick={() => setActiveMood('drive')}
-              >
-                Night Drive
-              </button>
+              {Object.entries(moods).map(([key, item]) => (
+                <button
+                  key={key}
+                  className={`tab-btn text-[10px] py-0.5 px-2 ${activeMoodKey === key ? 'active' : ''}`}
+                  onClick={() => setActiveMood(key)}
+                >
+                  {item.title || key}
+                </button>
+              ))}
             </div>
           </div>
 
-          {activeMood === 'lock-in' && (
+          {activeMoodItem && (
             <div className="text-xs space-y-1">
-              <div className="font-mono text-terminal-prompt">
-                &gt; Headliners: <b>Aphex Twin</b>, <b>Floating Points</b>
-              </div>
-              <div className="text-on-surface-variant">
-                Polyrhythms and high-tempo modular synthesis for deep flow states. Also listening to: Four Tet, Jon Hopkins, Bicep, Overmono.
-              </div>
-            </div>
-          )}
-
-          {activeMood === 'study' && (
-            <div className="text-xs space-y-1">
-              <div className="font-mono text-terminal-prompt">
-                &gt; Headliners: <b>Nils Frahm</b>, <b>Brian Eno</b>
-              </div>
-              <div className="text-on-surface-variant">
-                Tactile felt piano, tape echoes, spatial acoustics. Also listening to: Harold Budd, Max Richter, Hania Rani.
-              </div>
-            </div>
-          )}
-
-          {activeMood === 'game' && (
-            <div className="text-xs space-y-1">
-              <div className="font-mono text-terminal-prompt">
-                &gt; Headliners: <b>Disasterpeace</b>, <b>Mick Gordon</b>
-              </div>
-              <div className="text-on-surface-variant">
-                Chiptune architecture and sub-octave drive. Also listening to: Lena Raine, Darren Korb, HEALTH.
-              </div>
-            </div>
-          )}
-
-          {activeMood === 'drive' && (
-            <div className="text-xs space-y-1">
-              <div className="font-mono text-terminal-prompt">
-                &gt; Headliners: <b>Deftones</b>, <b>Kavinsky</b>
-              </div>
-              <div className="text-on-surface-variant">
-                Low-end punch through the Tiguan’s subwoofer on coastal 101. Also listening to: Gunship, The Midnight, Chromatics.
-              </div>
+              {activeMoodItem.headliners && (
+                <div className="font-mono text-terminal-prompt">
+                  &gt; Headliners: <b>{activeMoodItem.headliners}</b>
+                </div>
+              )}
+              {activeMoodItem.description && (
+                <div className="text-on-surface-variant">
+                  {activeMoodItem.description}
+                </div>
+              )}
             </div>
           )}
         </div>
