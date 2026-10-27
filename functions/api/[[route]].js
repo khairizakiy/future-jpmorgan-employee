@@ -50,7 +50,7 @@ const DEFAULT_PROFILE = {
   who_am_i: 'Vocational high school student driven by precision, discipline, and execution. Passionate about Formula 1 strategy, macroeconomics, finance, and market trading.',
   what_i_did: 'Available as a dependable everyday operator and virtual employee—handling Microsoft Excel data, Word documentation, research summarizing, and Personal Assistant operations.',
   school: 'Vocational High School Student • Developer & Quantitative Researcher',
-  photo: 'https://i.ibb.co/LD4jDhX4/Whats-App-Image-2026-10-25-at-12-01-45-AM.jpg',
+  photo: 'https://jnttmmhomgtpnkpymhfl.supabase.co/storage/v1/object/public/uploads/khairinugroho.jpeg',
   email: 'khairinugroho@gmail.com',
   x_url: 'https://instagram.com/khairinugroho',
   github_url: 'https://github.com/khairinugroho',
@@ -251,7 +251,12 @@ export async function onRequest(context) {
         supabase.from('cat').select('*').limit(1).maybeSingle()
       ])
 
-      const profile = profData || DEFAULT_PROFILE
+      const rawProf = profData || DEFAULT_PROFILE
+      const profile = {
+        ...rawProf,
+        instagram_url: rawProf.instagram_url || rawProf.x_url || '',
+        x_url: rawProf.x_url || rawProf.instagram_url || ''
+      }
       const bio = formatBio(bioData)
       const projects = (projData || []).map(formatProject)
       const experiences = (expData || []).map(formatExperience)
@@ -309,22 +314,41 @@ export async function onRequest(context) {
       if (method === 'GET') {
         const { data, error } = await supabase.from('profile').select('*').limit(1).maybeSingle()
         if (error) throw error
-        return json(data || DEFAULT_PROFILE)
+        const p = data || DEFAULT_PROFILE
+        return json({
+          ...p,
+          instagram_url: p.instagram_url || p.x_url || '',
+          x_url: p.x_url || p.instagram_url || ''
+        })
       }
       if (method === 'PUT') {
         const body = await request.json().catch(() => ({}))
+        const payload = { ...body }
+        delete payload.id
+        delete payload.created_at
+
+        // Safely map instagram_url to x_url if present
+        if (payload.instagram_url !== undefined) {
+          if (!payload.x_url) payload.x_url = payload.instagram_url
+          delete payload.instagram_url
+        }
+
         const { data: cur } = await supabase.from('profile').select('id').limit(1).maybeSingle()
         let result
         if (cur) {
-          const { data, error } = await supabase.from('profile').update(body).eq('id', cur.id).select().single()
+          const { data, error } = await supabase.from('profile').update(payload).eq('id', cur.id).select().single()
           if (error) throw error
           result = data
         } else {
-          const { data, error } = await supabase.from('profile').insert({ id: 1, ...body }).select().single()
+          const { data, error } = await supabase.from('profile').insert({ id: 1, ...payload }).select().single()
           if (error) throw error
           result = data
         }
-        return json(result)
+        return json({
+          ...result,
+          instagram_url: result?.instagram_url || result?.x_url || '',
+          x_url: result?.x_url || result?.instagram_url || ''
+        })
       }
     }
 

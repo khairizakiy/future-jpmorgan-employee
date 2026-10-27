@@ -100,8 +100,7 @@ export default function Admin() {
         email: profile.email,
         linkedin_url: profile.linkedin_url,
         github_url: profile.github_url,
-        x_url: profile.instagram_url,
-        instagram_url: profile.instagram_url
+        x_url: profile.instagram_url || profile.x_url || ''
       })
 
       await api.updateBio({

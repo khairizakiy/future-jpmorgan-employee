@@ -153,7 +153,7 @@ export default function Home() {
     name: 'Khairi Nugroho',
     hero: 'batam, id',
     headline: 'batam, id',
-    photo: 'https://i.ibb.co/LD4jDhX4/Whats-App-Image-2026-10-25-at-12-01-45-AM.jpg',
+    photo: 'https://jnttmmhomgtpnkpymhfl.supabase.co/storage/v1/object/public/uploads/khairinugroho.jpeg',
     photo_label: 'khairinugroho.jpeg',
     linkedin_url: 'https://linkedin.com/in/khairinugroho',
     github_url: 'https://github.com/khairinugroho',
@@ -235,9 +235,9 @@ export default function Home() {
               <img
                 alt={profile.name}
                 className="w-full aspect-[4/5] object-cover grayscale-[15%] hover:grayscale-0 transition-all duration-300"
-                src={profile.photo}
+                src={profile.photo || '/khairinugroho.jpeg'}
                 onError={(e) => {
-                  e.currentTarget.src = 'https://i.ibb.co/LD4jDhX4/Whats-App-Image-2026-10-25-at-12-01-45-AM.jpg'
+                  e.currentTarget.src = '/khairinugroho.jpeg'
                 }}
               />
             </div>

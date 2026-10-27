@@ -43,9 +43,6 @@ export default function MusicPage() {
     api.music().then((data) => {
       if (data) {
         setMusicData(data)
-        if (data.albums && data.albums.length > 0) {
-          setSelectedAlbum(data.albums[0])
-        }
       }
       setLoading(false)
     }).catch((err) => {
@@ -119,17 +116,18 @@ export default function MusicPage() {
   const r2 = row2.length > 0 ? row2 : albums.slice(6, 12)
   const r3 = row3.length > 0 ? row3 : albums.slice(12, 18)
 
-  const active = selectedAlbum || albums[0] || {
-    title: 'Blonde',
-    artist: 'Frank Ocean',
-    year: '2016',
-    genre: 'r&b / avant-garde',
-    tag: 'night drive',
-    progress: 71,
-    time: '02:47 / 03:54',
-    initial: 'FO',
-    gradient: 'linear-gradient(135deg, #1f2937, #111827)',
-    note: 'Endless late night drives down I-280. Warm Rhodes keys with masterclass dynamic headroom.'
+  const handleAlbumClick = (album) => {
+    setSelectedAlbum((prev) => {
+      if (prev && ((prev.id && prev.id === album.id) || prev.title === album.title)) {
+        return null
+      }
+      return album
+    })
+  }
+
+  const isAlbumSelected = (album) => {
+    if (!selectedAlbum) return false
+    return Boolean((selectedAlbum.id && selectedAlbum.id === album.id) || selectedAlbum.title === album.title)
   }
 
   const speedClass = speed === '0.5' ? 'speed-05x' : speed === '1.5' ? 'speed-15x' : 'speed-10x'
@@ -217,62 +215,84 @@ export default function MusicPage() {
         </div>
 
         {/* Retro Player & Now Inspect Card */}
-        <div id="retro-player-card" className="item-card border-[#9c9a91] bg-white p-3 mb-3.5 transition-all duration-200">
-          <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
-            <div className="flex items-center gap-3 min-w-0">
-              <AlbumCover album={active} className="w-12 h-12" textClass="text-xs" />
-              <div className="min-w-0">
-                <div className="flex items-center gap-2">
-                  <span className="text-[10px] font-mono uppercase tracking-wider text-emerald-800 bg-emerald-50 border border-emerald-300 px-1 rounded">
-                    now inspect
-                  </span>
-                  <span id="np-year" className="text-[11px] font-mono text-terminal-prompt">
-                    {active.year}
-                  </span>
-                  <span id="np-genre" className="text-[10px] font-mono text-[#585955] border-l border-[#d8d6cf] pl-1.5">
-                    {active.genre}
-                  </span>
-                </div>
-                <div className="font-bold text-[13.5px] text-on-surface truncate">
-                  <span id="np-title">{active.title}</span> <span className="font-normal text-on-surface-variant">—</span>{' '}
-                  <span id="np-artist" className="font-medium text-on-surface-variant">{active.artist}</span>
+        {selectedAlbum ? (
+          <div id="retro-player-card" className="item-card border-[#9c9a91] bg-white p-3 mb-3.5 transition-all duration-200">
+            <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
+              <div className="flex items-center gap-3 min-w-0">
+                <AlbumCover album={selectedAlbum} className="w-12 h-12" textClass="text-xs" />
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-mono uppercase tracking-wider text-emerald-800 bg-emerald-50 border border-emerald-300 px-1 rounded">
+                      now inspect
+                    </span>
+                    <span id="np-year" className="text-[11px] font-mono text-terminal-prompt">
+                      {selectedAlbum.year}
+                    </span>
+                    <span id="np-genre" className="text-[10px] font-mono text-[#585955] border-l border-[#d8d6cf] pl-1.5">
+                      {selectedAlbum.genre}
+                    </span>
+                  </div>
+                  <div className="font-bold text-[13.5px] text-on-surface truncate">
+                    <span id="np-title">{selectedAlbum.title}</span> <span className="font-normal text-on-surface-variant">—</span>{' '}
+                    <span id="np-artist" className="font-medium text-on-surface-variant">{selectedAlbum.artist}</span>
+                  </div>
                 </div>
               </div>
+              <div className="text-right sm:shrink-0 w-full sm:w-auto flex items-center justify-between sm:justify-end gap-2">
+                <div className="text-[11px] font-mono text-terminal-prompt flex items-center gap-2">
+                  <span id="np-time">{selectedAlbum.time || '02:47 / 03:54'}</span>
+                  <span className="text-xs text-star-gold">★ loop heavy</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSelectedAlbum(null)}
+                  className="text-[10px] font-mono text-[#75736c] hover:text-black hover:border-black border border-[#d2cfc7] px-1.5 py-0.5 rounded bg-[#f7f5ef] transition-colors"
+                  title="Deselect album"
+                >
+                  ✕ close
+                </button>
+              </div>
             </div>
-            <div className="text-right sm:shrink-0 w-full sm:w-auto">
-              <div className="text-[11px] font-mono text-terminal-prompt flex sm:justify-end items-center gap-2">
-                <span id="np-time">{active.time || '02:47 / 03:54'}</span>
-                <span className="text-xs text-star-gold">★ loop heavy</span>
+            <div className="w-full bg-[#f0eee8] h-1.5 rounded-full overflow-hidden mt-2.5 border border-[#dcdad4]">
+              <div
+                id="np-progress"
+                className="bg-[#1b1c18] h-full transition-all duration-300"
+                style={{ width: `${selectedAlbum.progress || 60}%` }}
+              ></div>
+            </div>
+            <div className="mt-2 pt-2 border-t border-[#f0eee8] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-1.5 text-xs text-on-surface-variant font-mono">
+              <div className="text-[11.5px] font-mono">
+                <span className="text-terminal-prompt">&gt; rotation note: </span>
+                <span id="np-note" className="text-on-surface font-sans">{selectedAlbum.note}</span>
+              </div>
+              <div className="shrink-0 flex items-center gap-1.5">
+                <span id="np-tag" className="text-[10px] bg-[#f5f3ed] border border-[#d2cfc7] text-[#333] px-1.5 py-0.5 rounded font-mono">
+                  {selectedAlbum.tag || 'focus'}
+                </span>
+                <a
+                  href="https://spotify.com"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="link-badge !text-[10px] !py-0 !px-1.5"
+                >
+                  listen ↗
+                </a>
               </div>
             </div>
           </div>
-          <div className="w-full bg-[#f0eee8] h-1.5 rounded-full overflow-hidden mt-2.5 border border-[#dcdad4]">
-            <div
-              id="np-progress"
-              className="bg-[#1b1c18] h-full transition-all duration-300"
-              style={{ width: `${active.progress || 60}%` }}
-            ></div>
-          </div>
-          <div className="mt-2 pt-2 border-t border-[#f0eee8] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-1.5 text-xs text-on-surface-variant font-mono">
-            <div className="text-[11.5px] font-mono">
-              <span className="text-terminal-prompt">&gt; rotation note: </span>
-              <span id="np-note" className="text-on-surface font-sans">{active.note}</span>
-            </div>
-            <div className="shrink-0 flex items-center gap-1.5">
-              <span id="np-tag" className="text-[10px] bg-[#f5f3ed] border border-[#d2cfc7] text-[#333] px-1.5 py-0.5 rounded font-mono">
-                {active.tag || 'focus'}
-              </span>
-              <a
-                href="https://spotify.com"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="link-badge !text-[10px] !py-0 !px-1.5"
-              >
-                listen ↗
-              </a>
+        ) : (
+          <div id="retro-player-card" className="item-card border-[#c8c6be] bg-[#faf8f2] p-3 mb-3.5 transition-all duration-200">
+            <div className="flex items-center justify-between gap-2 font-mono text-xs text-terminal-prompt">
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-mono uppercase tracking-wider text-[#75736c] bg-[#edebe4] border border-[#d2cfc7] px-1.5 py-0.5 rounded">
+                  inspection: idle
+                </span>
+                <span>select an album from the vinyl crates below to inspect details & track notes</span>
+              </div>
+              <span className="text-[11px] text-[#8a8880] hidden sm:inline">[none selected]</span>
             </div>
           </div>
-        </div>
+        )}
 
         {/* 3-Row Infinite Marquee */}
         <div
@@ -284,11 +304,11 @@ export default function MusicPage() {
             <div className="marquee-track-left gap-2 py-0.5">
               <div className="flex gap-2 shrink-0">
                 {r1.map((album) => {
-                  const isSel = (active.id && active.id === album.id) || active.title === album.title
+                  const isSel = isAlbumSelected(album)
                   return (
                     <div
                       key={`r1-a-${album.id || album.title}`}
-                      onClick={() => setSelectedAlbum(album)}
+                      onClick={() => handleAlbumClick(album)}
                       className={`album-card ${isSel ? 'active-selected' : ''} flex items-center gap-2.5 p-1.5 pr-3 bg-white border border-[#b8b6ad] rounded-[2px] cursor-pointer`}
                     >
                       <AlbumCover album={album} className="w-10 h-10" />
@@ -305,11 +325,11 @@ export default function MusicPage() {
               {/* Duplicate for seamless loop */}
               <div className="flex gap-2 shrink-0">
                 {r1.map((album) => {
-                  const isSel = (active.id && active.id === album.id) || active.title === album.title
+                  const isSel = isAlbumSelected(album)
                   return (
                     <div
                       key={`r1-b-${album.id || album.title}`}
-                      onClick={() => setSelectedAlbum(album)}
+                      onClick={() => handleAlbumClick(album)}
                       className={`album-card ${isSel ? 'active-selected' : ''} flex items-center gap-2.5 p-1.5 pr-3 bg-white border border-[#b8b6ad] rounded-[2px] cursor-pointer`}
                     >
                       <AlbumCover album={album} className="w-10 h-10" />
@@ -331,11 +351,11 @@ export default function MusicPage() {
             <div className="marquee-track-right gap-2 py-0.5">
               <div className="flex gap-2 shrink-0">
                 {r2.map((album) => {
-                  const isSel = (active.id && active.id === album.id) || active.title === album.title
+                  const isSel = isAlbumSelected(album)
                   return (
                     <div
                       key={`r2-a-${album.id || album.title}`}
-                      onClick={() => setSelectedAlbum(album)}
+                      onClick={() => handleAlbumClick(album)}
                       className={`album-card ${isSel ? 'active-selected' : ''} flex items-center gap-2.5 p-1.5 pr-3 bg-white border border-[#b8b6ad] rounded-[2px] cursor-pointer`}
                     >
                       <AlbumCover album={album} className="w-10 h-10" />
@@ -352,11 +372,11 @@ export default function MusicPage() {
               {/* Duplicate for seamless loop */}
               <div className="flex gap-2 shrink-0">
                 {r2.map((album) => {
-                  const isSel = (active.id && active.id === album.id) || active.title === album.title
+                  const isSel = isAlbumSelected(album)
                   return (
                     <div
                       key={`r2-b-${album.id || album.title}`}
-                      onClick={() => setSelectedAlbum(album)}
+                      onClick={() => handleAlbumClick(album)}
                       className={`album-card ${isSel ? 'active-selected' : ''} flex items-center gap-2.5 p-1.5 pr-3 bg-white border border-[#b8b6ad] rounded-[2px] cursor-pointer`}
                     >
                       <AlbumCover album={album} className="w-10 h-10" />
@@ -378,11 +398,11 @@ export default function MusicPage() {
             <div className="marquee-track-left gap-2 py-0.5">
               <div className="flex gap-2 shrink-0">
                 {r3.map((album) => {
-                  const isSel = (active.id && active.id === album.id) || active.title === album.title
+                  const isSel = isAlbumSelected(album)
                   return (
                     <div
                       key={`r3-a-${album.id || album.title}`}
-                      onClick={() => setSelectedAlbum(album)}
+                      onClick={() => handleAlbumClick(album)}
                       className={`album-card ${isSel ? 'active-selected' : ''} flex items-center gap-2.5 p-1.5 pr-3 bg-white border border-[#b8b6ad] rounded-[2px] cursor-pointer`}
                     >
                       <AlbumCover album={album} className="w-10 h-10" />
@@ -399,11 +419,11 @@ export default function MusicPage() {
               {/* Duplicate for seamless loop */}
               <div className="flex gap-2 shrink-0">
                 {r3.map((album) => {
-                  const isSel = (active.id && active.id === album.id) || active.title === album.title
+                  const isSel = isAlbumSelected(album)
                   return (
                     <div
                       key={`r3-b-${album.id || album.title}`}
-                      onClick={() => setSelectedAlbum(album)}
+                      onClick={() => handleAlbumClick(album)}
                       className={`album-card ${isSel ? 'active-selected' : ''} flex items-center gap-2.5 p-1.5 pr-3 bg-white border border-[#b8b6ad] rounded-[2px] cursor-pointer`}
                     >
                       <AlbumCover album={album} className="w-10 h-10" />
