@@ -17,7 +17,7 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
 async function check() {
   console.log(`[Supabase Check] Connecting to ${SUPABASE_URL}...`)
 
-  const tables = ['profile', 'bio', 'projects', 'threads', 'admin_users', 'services', 'awards_and_courses', 'pictures']
+  const tables = ['profile', 'bio', 'experiences', 'projects', 'music', 'tiguan', 'friends', 'cat', 'admin_users', 'pictures']
   for (const t of tables) {
     const { data, error, count } = await supabase.from(t).select('*', { count: 'exact' }).limit(1)
     if (error) {
@@ -29,7 +29,7 @@ async function check() {
 
   console.log('\nTo create or update the tables in Supabase:')
   console.log('1. Open Supabase Dashboard -> SQL Editor')
-  console.log('2. Run the SQL file: supabase-bio.sql (or db/supabase-bio.sql)')
+  console.log('2. Run the SQL file: supabase-schema.sql')
 }
 
 check()

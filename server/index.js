@@ -19,8 +19,13 @@ const app = express()
 app.use(cors())
 app.use(express.json())
 
-// Serve uploaded media
-const UPLOADS_DIR = path.join(ROOT, 'public', 'uploads')
+// Serve static public assets & uploaded media
+const PUBLIC_DIR = path.join(ROOT, 'public')
+const UPLOADS_DIR = path.join(PUBLIC_DIR, 'uploads')
+if (!fs.existsSync(UPLOADS_DIR)) {
+  fs.mkdirSync(UPLOADS_DIR, { recursive: true })
+}
+app.use(express.static(PUBLIC_DIR))
 app.use('/uploads', express.static(UPLOADS_DIR))
 
 // Guard every write endpoint with JWT auth (login/setup excepted).
@@ -30,7 +35,7 @@ app.use((req, res, next) => {
   if (
     req.path === '/api/auth/login' ||
     req.path === '/api/auth/setup' ||
-    req.path === '/api/auth/reset-local'
+    req.path === '/api/auth/reset-local' || req.path === '/api/cat/pat'
   ) {
     return next()
   }
@@ -54,7 +59,7 @@ const upload = multer({
       cb(null, `img-${Date.now()}${ext}`)
     }
   }),
-  limits: { fileSize: 5 * 1024 * 1024 }
+  limits: { fileSize: 25 * 1024 * 1024 }
 })
 
 // wrap async handlers
@@ -106,7 +111,17 @@ app.put(
   })
 )
 
-app.post('/api/upload', upload.single('photo'), ah(async (req, res) => {
+app.post('/api/upload', (req, res, next) => {
+  upload.single('photo')(req, res, (err) => {
+    if (err) {
+      if (err.code === 'LIMIT_FILE_SIZE') {
+        return res.status(400).json({ error: 'File size too large (max 25MB)' })
+      }
+      return res.status(400).json({ error: err.message || 'File upload error' })
+    }
+    next()
+  })
+}, ah(async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file received' })
   const localPath = `/uploads/${req.file.filename}`
   let supabaseUrl = null
@@ -214,133 +229,6 @@ app.delete(
   })
 )
 
-// ---------- threads ----------
-app.get(
-  '/api/threads',
-  ah(async (req, res) => {
-    const all = req.query.all === '1'
-    const rows = await db.getThreads(!all)
-    res.json(rows)
-  })
-)
-
-app.get(
-  '/api/threads/:id',
-  ah(async (req, res) => {
-    const all = req.query.all === '1'
-    const thread = await db.getThread(req.params.id, !all)
-    if (!thread) return res.status(404).json({ error: 'Note not found' })
-    res.json(thread)
-  })
-)
-
-app.post(
-  '/api/threads',
-  ah(async (req, res) => {
-    const b = req.body || {}
-    if (!b.title || !String(b.title).trim()) {
-      return res.status(400).json({ error: 'Title is required' })
-    }
-    const created = await db.createThread(b)
-    res.status(201).json(created)
-  })
-)
-
-app.put(
-  '/api/threads/:id',
-  ah(async (req, res) => {
-    const updated = await db.updateThread(req.params.id, req.body || {})
-    if (!updated) return res.status(404).json({ error: 'Not found' })
-    res.json(updated)
-  })
-)
-
-app.delete(
-  '/api/threads/:id',
-  ah(async (req, res) => {
-    await db.deleteThread(req.params.id)
-    res.json({ ok: true })
-  })
-)
-
-// ---------- services ----------
-app.get(
-  '/api/services',
-  ah(async (req, res) => {
-    const all = req.query.all === '1'
-    const rows = await db.getServices(!all)
-    res.json(rows)
-  })
-)
-
-app.post(
-  '/api/services',
-  ah(async (req, res) => {
-    const b = req.body || {}
-    if (!b.title || !String(b.title).trim()) {
-      return res.status(400).json({ error: 'Title is required' })
-    }
-    const created = await db.createService(b)
-    res.status(201).json(created)
-  })
-)
-
-app.put(
-  '/api/services/:id',
-  ah(async (req, res) => {
-    const updated = await db.updateService(req.params.id, req.body || {})
-    if (!updated) return res.status(404).json({ error: 'Not found' })
-    res.json(updated)
-  })
-)
-
-app.delete(
-  '/api/services/:id',
-  ah(async (req, res) => {
-    await db.deleteService(req.params.id)
-    res.json({ ok: true })
-  })
-)
-
-// ---------- awards & courses ----------
-app.get(
-  '/api/awards',
-  ah(async (req, res) => {
-    const all = req.query.all === '1'
-    const rows = await db.getAwardsAndCourses(!all)
-    res.json(rows)
-  })
-)
-
-app.post(
-  '/api/awards',
-  ah(async (req, res) => {
-    const b = req.body || {}
-    if (!b.title || !String(b.title).trim()) {
-      return res.status(400).json({ error: 'Title is required' })
-    }
-    const created = await db.createAwardCourse(b)
-    res.status(201).json(created)
-  })
-)
-
-app.put(
-  '/api/awards/:id',
-  ah(async (req, res) => {
-    const updated = await db.updateAwardCourse(req.params.id, req.body || {})
-    if (!updated) return res.status(404).json({ error: 'Not found' })
-    res.json(updated)
-  })
-)
-
-app.delete(
-  '/api/awards/:id',
-  ah(async (req, res) => {
-    await db.deleteAwardCourse(req.params.id)
-    res.json({ ok: true })
-  })
-)
-
 // ---------- pictures (media in Supabase) ----------
 app.get(
   '/api/pictures',
@@ -388,6 +276,107 @@ app.delete(
     res.json({ ok: true })
   })
 )
+
+
+// ---------- full portfolio aggregation ----------
+app.get('/api/portfolio-full', ah(async (_req, res) => {
+  const data = await db.getFullPortfolio()
+  res.json(data)
+}))
+
+// ---------- experiences ----------
+app.get('/api/experiences', ah(async (req, res) => {
+  const all = req.query.all === '1'
+  const rows = await db.getExperiences(!all)
+  res.json(rows)
+}))
+
+app.post('/api/experiences', ah(async (req, res) => {
+  const row = await db.createExperience(req.body || {})
+  res.status(201).json(row)
+}))
+
+app.put('/api/experiences/:id', ah(async (req, res) => {
+  const updated = await db.updateExperience(req.params.id, req.body || {})
+  if (!updated) return res.status(404).json({ error: 'Experience not found' })
+  res.json(updated)
+}))
+
+app.delete('/api/experiences/:id', ah(async (req, res) => {
+  await db.deleteExperience(req.params.id)
+  res.json({ ok: true })
+}))
+
+// ---------- music ----------
+app.get('/api/music', ah(async (_req, res) => {
+  const music = await db.getMusic()
+  res.json(music)
+}))
+
+app.post('/api/music', ah(async (req, res) => {
+  const row = await db.createMusicAlbum(req.body || {})
+  res.status(201).json(row)
+}))
+
+app.put('/api/music/:id', ah(async (req, res) => {
+  const updated = await db.updateMusicAlbum(req.params.id, req.body || {})
+  if (!updated) return res.status(404).json({ error: 'Album not found' })
+  res.json(updated)
+}))
+
+app.delete('/api/music/:id', ah(async (req, res) => {
+  await db.deleteMusicAlbum(req.params.id)
+  res.json({ ok: true })
+}))
+
+// ---------- 2021 tiguan ----------
+app.get('/api/tiguan', ah(async (_req, res) => {
+  const tiguan = await db.getTiguan()
+  res.json(tiguan)
+}))
+
+app.put('/api/tiguan', ah(async (req, res) => {
+  const updated = await db.updateTiguan(req.body || {})
+  res.json(updated)
+}))
+
+// ---------- friends & film ----------
+app.get('/api/friends', ah(async (_req, res) => {
+  const friends = await db.getFriends()
+  res.json(friends)
+}))
+
+app.post('/api/friends', ah(async (req, res) => {
+  const row = await db.createFriendsPhoto(req.body || {})
+  res.status(201).json(row)
+}))
+
+app.put('/api/friends/:id', ah(async (req, res) => {
+  const updated = await db.updateFriendsPhoto(req.params.id, req.body || {})
+  if (!updated) return res.status(404).json({ error: 'Photo not found' })
+  res.json(updated)
+}))
+
+app.delete('/api/friends/:id', ah(async (req, res) => {
+  await db.deleteFriendsPhoto(req.params.id)
+  res.json({ ok: true })
+}))
+
+// ---------- cat (mochi) ----------
+app.get('/api/cat', ah(async (_req, res) => {
+  const cat = await db.getCat()
+  res.json(cat)
+}))
+
+app.put('/api/cat', ah(async (req, res) => {
+  const updated = await db.updateCat(req.body || {})
+  res.json(updated)
+}))
+
+app.post('/api/cat/pat', ah(async (_req, res) => {
+  const result = await db.patCat()
+  res.json(result)
+}))
 
 // ---------- auth (admin login) ----------
 app.get(
@@ -563,7 +552,7 @@ app.use(async (req, res, next) => {
     } else if (req.path === '/work') {
       html = html.replace(
         /<title>.*?<\/title>/,
-        `<title>Work Archive &amp; Systems — Khairi Nugroho</title>`
+        `<title>Projects &amp; Systems — Khairi Nugroho</title>`
       )
     }
 

@@ -1,181 +1,649 @@
-import { useEffect, useRef, useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
+import Header from '../components/Header.jsx'
+import { navigate } from '../router.js'
 import { api } from '../api.js'
 
-const emptyProject = {
-  title: '',
-  category: 'OPERATIONS',
-  progress: 3,
-  description: '',
-  url: '',
-  image: '',
-  published: true,
-  client: '',
-  brief: '',
-  engagement: '',
-  documentation: '',
-  challenge: '',
-  approach: '',
-  picture_docs: '',
-  quote: '',
-  outcome: ''
-}
-
-const CATEGORY_SUGGESTIONS = [
-  'OPERATIONS',
-  'FINANCE & TRADING',
-  'WEB DEVELOPMENT',
-  'AI & AUTOMATION',
-  'QUANT SPREADSHEET',
-  'RESEARCH & PA'
-]
-
 export default function Admin() {
-  // Auth state: 'loading' | 'setup' | 'login' | 'ok'
-  const [authView, setAuthView] = useState('loading')
+  // Auth state
+  const [authView, setAuthView] = useState('loading') // 'loading' | 'login' | 'setup' | 'ok'
   const [authMode, setAuthMode] = useState('login') // 'login' | 'reset'
   const [who, setWho] = useState('')
   const [usernameInput, setUsernameInput] = useState('')
   const [passwordInput, setPasswordInput] = useState('')
   const [authErr, setAuthErr] = useState('')
+  const [serverOnline, setServerOnline] = useState(true)
 
-  // Active Tab
-  const [activeTab, setActiveTab] = useState('projects') // 'projects' | 'profile' | 'security'
+  // Active Tab: matching home page sections
+  const [activeTab, setActiveTab] = useState('whoami') // 'whoami' | 'experiences' | 'projects' | 'music' | 'tiguan' | 'friends' | 'cat' | 'security'
 
-  // Projects State
-  const [projects, setProjects] = useState([])
-  const [projForm, setProjForm] = useState(emptyProject)
-  const [editingId, setEditingId] = useState(null)
-  const [uploadingImage, setUploadingImage] = useState(false)
+  // Notifications
+  const [toast, setToast] = useState(null)
+  const showToast = (message, isError = false) => {
+    setToast({ message, isError })
+    if (!isError && typeof window !== 'undefined') {
+      window.__INITIAL_DATA__ = null
+    }
+    setTimeout(() => setToast(null), 3500)
+  }
 
-  // Profile State
+  // File upload state & ref
+  const [uploading, setUploading] = useState(false)
+  const fileInputRef = useRef(null)
+  const uploadCallbackRef = useRef(null)
+
+  const triggerUpload = (callback) => {
+    uploadCallbackRef.current = callback
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ''
+      fileInputRef.current.click()
+    }
+  }
+
+  const handleFileUpload = async (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setUploading(true)
+    try {
+      const res = await api.upload(file)
+      const finalUrl = res?.url || res?.path || res?.localPath
+      if (finalUrl) {
+        showToast('Photo uploaded successfully.')
+        if (typeof uploadCallbackRef.current === 'function') {
+          uploadCallbackRef.current(finalUrl)
+        }
+      } else {
+        showToast('Upload succeeded but no URL was returned.', true)
+      }
+    } catch (err) {
+      showToast(err.message || 'Upload failed', true)
+    } finally {
+      setUploading(false)
+      uploadCallbackRef.current = null
+      if (fileInputRef.current) {
+        fileInputRef.current.value = ''
+      }
+    }
+  }
+
+  // ----------------------------------------------------
+  // SECTION 1: WHOAMI (Profile & Bio)
+  // ----------------------------------------------------
   const [profile, setProfile] = useState({
-    hero: '',
-    name: '',
-    who_am_i: '',
-    what_i_did: '',
-    school: '',
-    photo: null,
-    email: '',
-    instagram_url: '',
-    x_url: '',
-    github_url: '',
-    linkedin_url: ''
+    name: 'Khairi Nugroho',
+    hero: 'batam, id',
+    who_am_i: "Hi! I'm Khairi, a systems architect and software engineer based in Batam.",
+    what_i_did: 'Most of my time goes into distributed backends, clean type-safe frontend architecture (TypeScript + Rust), and building tools that run fast without useless computational bloat.',
+    school: "When I'm not pushing commits, I'm usually underneath the chassis of my 2021 VW Tiguan doing suspension tweaks, hunting for obscure vinyl records, or hanging out with my cat Mochi.",
+    photo: '',
+    photo_label: 'khairinugroho.jpeg',
+    email: 'khairizakiyn@gmail.com',
+    linkedin_url: 'https://linkedin.com/khairinugroho',
+    github_url: 'https://github.com/khairizakiy',
+    instagram_url: 'https://instagram.com/zkiyngrh',
+    spotify_url: 'https://open.spotify.com/user/j45vdoajmtkvdq33tunybf9o6?si=3163aa858f2341ab',
+    motto: 'Precision is quiet; restraint speaks louder than ornamentation.'
   })
-  const [uploadingPhoto, setUploadingPhoto] = useState(false)
 
-  // About Section Bio State (Supabase public.bio)
-  const [bio, setBio] = useState({
-    subtitle: '1 YEAR IN WEB DEVELOPMENT',
-    paragraph_1: "I'm Khairi Nugroho, a vocational high school student driven by precision, discipline, and execution. Passionate about Formula 1 strategy, macroeconomics, finance, and market trading.",
-    paragraph_2: "Currently available as a dependable everyday operator and virtual employee—handling Microsoft Excel data, Word documentation, research summarizing, and Personal Assistant operations.",
-    content: ''
-  })
-  const [savingBio, setSavingBio] = useState(false)
+  const [savingProfile, setSavingProfile] = useState(false)
 
-  // Services & Awards State
-  const [servicesList, setServicesList] = useState([])
-  const [awardsList, setAwardsList] = useState([])
-  const [serviceForm, setServiceForm] = useState({ title: '', description: '', link: '', order_index: 0, published: true })
-  const [editingServiceId, setEditingServiceId] = useState(null)
-  const [awardForm, setAwardForm] = useState({ title: '', description: '', link: '', order_index: 0, published: true })
-  const [editingAwardId, setEditingAwardId] = useState(null)
+  const handleProfileSubmit = async (e) => {
+    e.preventDefault()
+    setSavingProfile(true)
+    try {
+      await api.updateProfile({
+        name: profile.name,
+        hero: profile.hero,
+        who_am_i: profile.who_am_i,
+        what_i_did: profile.what_i_did,
+        school: profile.school,
+        photo: profile.photo,
+        email: profile.email,
+        linkedin_url: profile.linkedin_url,
+        github_url: profile.github_url,
+        x_url: profile.instagram_url,
+        instagram_url: profile.instagram_url
+      })
 
-  // Pictures & Media State (Supabase Auto-Sync)
-  const [picturesList, setPicturesList] = useState([])
-  const [pictureForm, setPictureForm] = useState({
-    name: '',
-    title: '',
-    category: 'profile',
-    url: '',
-    alt_text: '',
+      await api.updateBio({
+        subtitle: profile.hero,
+        paragraph_1: profile.who_am_i,
+        paragraph_2: profile.what_i_did,
+        content: `${profile.who_am_i}\n\n${profile.what_i_did}\n\n${profile.school}`
+      })
+
+      showToast('Profile & Bio updated in Supabase.')
+    } catch (err) {
+      showToast(err.message || 'Failed to save profile', true)
+    } finally {
+      setSavingProfile(false)
+    }
+  }
+
+  // ----------------------------------------------------
+  // SECTION 2: EXPERIENCES
+  // ----------------------------------------------------
+  const [experiencesList, setExperiencesList] = useState([])
+  const [expForm, setExpForm] = useState({
+    company: '',
+    role: '',
+    job_type: 'Full-time',
+    location: '',
+    period: '',
     description: '',
+    logo: '',
+    initial: '',
+    initial_bg: '#1b1c18',
+    star: false,
     order_index: 0,
     published: true
   })
-  const [editingPicId, setEditingPicId] = useState(null)
-  const [uploadingPicMedia, setUploadingPicMedia] = useState(false)
-  const picMediaInputRef = useRef(null)
+  const [editingExpId, setEditingExpId] = useState(null)
 
-  // Security Form State
+  const handleExpSubmit = async (e) => {
+    e.preventDefault()
+    if (!expForm.company.trim() || !expForm.role.trim()) {
+      showToast('Company and Role are required.', true)
+      return
+    }
+    try {
+      const payload = {
+        ...expForm,
+        initial: expForm.initial || (expForm.company ? expForm.company[0].toUpperCase() : 'E'),
+        order_index: Number(expForm.order_index) || 0
+      }
+      if (editingExpId) {
+        const updated = await api.updateExperience(editingExpId, payload)
+        setExperiencesList((prev) => prev.map((item) => (item.id === editingExpId ? updated : item)))
+        showToast('Experience updated successfully.')
+        setEditingExpId(null)
+      } else {
+        const created = await api.createExperience(payload)
+        setExperiencesList((prev) => [...prev, created])
+        showToast('New experience created.')
+      }
+      setExpForm({
+        company: '',
+        role: '',
+        job_type: 'Full-time',
+        location: '',
+        period: '',
+        description: '',
+        logo: '',
+        initial: '',
+        initial_bg: '#1b1c18',
+        star: false,
+        order_index: 0,
+        published: true
+      })
+    } catch (err) {
+      showToast(err.message || 'Failed to save experience', true)
+    }
+  }
+
+  const handleExpEdit = (exp) => {
+    setEditingExpId(exp.id)
+    setExpForm({
+      company: exp.company || '',
+      role: exp.role || '',
+      job_type: exp.job_type || (Array.isArray(exp.badges) && typeof exp.badges[0] === 'string' ? exp.badges[0] : 'Full-time'),
+      location: exp.location || '',
+      period: exp.period || '',
+      description: exp.description || '',
+      logo: exp.logo || exp.image || (exp.initial_bg && (exp.initial_bg.startsWith('http') || exp.initial_bg.startsWith('/uploads')) ? exp.initial_bg : ''),
+      initial: exp.initial || '',
+      initial_bg: exp.initial_bg || '#1b1c18',
+      star: Boolean(exp.star),
+      order_index: exp.order_index ?? 0,
+      published: exp.published !== false
+    })
+  }
+
+  const handleExpDelete = async (id) => {
+    if (!window.confirm('Delete this experience from Supabase?')) return
+    try {
+      await api.deleteExperience(id)
+      setExperiencesList((prev) => prev.filter((exp) => exp.id !== id))
+      showToast('Experience deleted.')
+    } catch (err) {
+      showToast(err.message || 'Failed to delete experience', true)
+    }
+  }
+
+  // ----------------------------------------------------
+  // SECTION 3: PROJECTS
+  // ----------------------------------------------------
+  const [projectsList, setProjectsList] = useState([])
+  const [projForm, setProjForm] = useState({
+    title: '',
+    category: 'SOFTWARE',
+    description: '',
+    url: '',
+    image: '',
+    star: false,
+    stars_count: '',
+    published: true,
+    tags: ''
+  })
+  const [editingProjId, setEditingProjId] = useState(null)
+
+  const handleProjSubmit = async (e) => {
+    e.preventDefault()
+    if (!projForm.title.trim()) {
+      showToast('Project title is required.', true)
+      return
+    }
+    try {
+      const payload = {
+        title: projForm.title,
+        category: projForm.category || 'SOFTWARE',
+        description: projForm.description,
+        url: projForm.url,
+        image: projForm.image,
+        star: projForm.star,
+        stars_count: projForm.stars_count,
+        published: projForm.published !== false,
+        tags: projForm.tags
+          ? projForm.tags.split(',').map((s) => s.trim()).filter(Boolean)
+          : []
+      }
+      if (editingProjId) {
+        const updated = await api.updateProject(editingProjId, payload)
+        setProjectsList((prev) => prev.map((p) => (p.id === editingProjId ? updated : p)))
+        showToast('Project updated.')
+        setEditingProjId(null)
+      } else {
+        const created = await api.createProject(payload)
+        setProjectsList((prev) => [...prev, created])
+        showToast('New project created.')
+      }
+      setProjForm({
+        title: '',
+        category: 'SOFTWARE',
+        description: '',
+        url: '',
+        image: '',
+        star: false,
+        stars_count: '',
+        published: true,
+        tags: ''
+      })
+    } catch (err) {
+      showToast(err.message || 'Failed to save project', true)
+    }
+  }
+
+  const handleProjEdit = (proj) => {
+    setEditingProjId(proj.id)
+    setProjForm({
+      title: proj.title || '',
+      category: proj.category || 'SOFTWARE',
+      description: proj.description || '',
+      url: proj.url || '',
+      image: proj.image || '',
+      star: Boolean(proj.star),
+      stars_count: proj.stars_count || '',
+      published: proj.published !== false,
+      tags: Array.isArray(proj.tags) ? proj.tags.join(', ') : (proj.tags || '')
+    })
+  }
+
+  const handleProjDelete = async (id) => {
+    if (!window.confirm('Delete this project from Supabase?')) return
+    try {
+      await api.deleteProject(id)
+      setProjectsList((prev) => prev.filter((p) => p.id !== id))
+      showToast('Project deleted.')
+    } catch (err) {
+      showToast(err.message || 'Failed to delete project', true)
+    }
+  }
+
+  // ----------------------------------------------------
+  // SECTION 4: MUSIC
+  // ----------------------------------------------------
+  const [musicAlbums, setMusicAlbums] = useState([])
+  const [albumForm, setAlbumForm] = useState({
+    title: '',
+    artist: '',
+    year: '2024',
+    genre: '',
+    tag: '',
+    note: '',
+    image: '',
+    progress: 70,
+    time: '02:40 / 03:50',
+    initial: '',
+    gradient: 'linear-gradient(135deg, #1f2937, #111827)',
+    row: 1
+  })
+  const [editingAlbumId, setEditingAlbumId] = useState(null)
+
+  const handleAlbumSubmit = async (e) => {
+    e.preventDefault()
+    if (!albumForm.title.trim() || !albumForm.artist.trim()) {
+      showToast('Title and Artist are required.', true)
+      return
+    }
+    try {
+      const payload = {
+        ...albumForm,
+        progress: Number(albumForm.progress) || 50,
+        row: Number(albumForm.row) || 1,
+        initial: albumForm.initial || (albumForm.artist ? albumForm.artist.slice(0, 2).toUpperCase() : 'MU')
+      }
+      if (editingAlbumId) {
+        const updated = await api.updateMusicAlbum(editingAlbumId, payload)
+        setMusicAlbums((prev) => prev.map((a) => (a.id === editingAlbumId ? updated : a)))
+        showToast('Album updated.')
+        setEditingAlbumId(null)
+      } else {
+        const created = await api.createMusicAlbum(payload)
+        setMusicAlbums((prev) => [...prev, created])
+        showToast('Album added.')
+      }
+      setAlbumForm({
+        title: '',
+        artist: '',
+        year: '2024',
+        genre: '',
+        tag: '',
+        note: '',
+        image: '',
+        progress: 70,
+        time: '02:40 / 03:50',
+        initial: '',
+        gradient: 'linear-gradient(135deg, #1f2937, #111827)',
+        row: 1
+      })
+    } catch (err) {
+      showToast(err.message || 'Failed to save album', true)
+    }
+  }
+
+  const handleAlbumEdit = (a) => {
+    setEditingAlbumId(a.id)
+    setAlbumForm({
+      title: a.title || '',
+      artist: a.artist || '',
+      year: a.year || '2024',
+      genre: a.genre || '',
+      tag: a.tag || '',
+      note: a.note || '',
+      image: a.image || a.cover || (a.gradient && (a.gradient.startsWith('http') || a.gradient.startsWith('/uploads')) ? a.gradient : ''),
+      progress: a.progress || 50,
+      time: a.time || '02:40 / 03:50',
+      initial: a.initial || '',
+      gradient: a.gradient || 'linear-gradient(135deg, #1f2937, #111827)',
+      row: a.row || a.row_index || 1
+    })
+  }
+
+  const handleAlbumDelete = async (id) => {
+    if (!window.confirm('Delete this album?')) return
+    try {
+      await api.deleteMusicAlbum(id)
+      setMusicAlbums((prev) => prev.filter((a) => a.id !== id))
+      showToast('Album deleted.')
+    } catch (err) {
+      showToast(err.message || 'Failed to delete album', true)
+    }
+  }
+
+  // ----------------------------------------------------
+  // SECTION 5: TIGUAN
+  // ----------------------------------------------------
+  const [tiguan, setTiguan] = useState({
+    title: '2009 Volkswagen Tiguan TSI 2.0',
+    color: 'Deep Black Pearl',
+    photos: [],
+    mods: []
+  })
+  const [newTiguanPhotoUrl, setNewTiguanPhotoUrl] = useState('')
+  const [newTiguanPhotoCaption, setNewTiguanPhotoCaption] = useState('')
+  const [newModName, setNewModName] = useState('')
+  const [newModDetail, setNewModDetail] = useState('')
+
+  const handleTiguanSave = async () => {
+    try {
+      await api.updateTiguan(tiguan)
+      showToast('Tiguan vehicle profile updated.')
+    } catch (err) {
+      showToast(err.message || 'Failed to save Tiguan profile', true)
+    }
+  }
+
+  const handleAddTiguanPhoto = () => {
+    if (!newTiguanPhotoUrl.trim()) return
+    const nextPhotos = [
+      ...(tiguan.photos || []),
+      { id: Date.now(), url: newTiguanPhotoUrl.trim(), caption: newTiguanPhotoCaption.trim() }
+    ]
+    const updated = { ...tiguan, photos: nextPhotos }
+    setTiguan(updated)
+    setNewTiguanPhotoUrl('')
+    setNewTiguanPhotoCaption('')
+    api.updateTiguan(updated).then(() => showToast('Photo added to Tiguan.')).catch(() => {})
+  }
+
+  const handleRemoveTiguanPhoto = (id) => {
+    const nextPhotos = (tiguan.photos || []).filter((p) => p.id !== id)
+    const updated = { ...tiguan, photos: nextPhotos }
+    setTiguan(updated)
+    api.updateTiguan(updated).then(() => showToast('Photo removed.')).catch(() => {})
+  }
+
+  const handleAddMod = () => {
+    if (!newModName.trim()) return
+    const nextMods = [...(tiguan.mods || []), { name: newModName.trim(), detail: newModDetail.trim() }]
+    const updated = { ...tiguan, mods: nextMods }
+    setTiguan(updated)
+    setNewModName('')
+    setNewModDetail('')
+    api.updateTiguan(updated).then(() => showToast('Mod added.')).catch(() => {})
+  }
+
+  const handleRemoveMod = (idx) => {
+    const nextMods = (tiguan.mods || []).filter((_, i) => i !== idx)
+    const updated = { ...tiguan, mods: nextMods }
+    setTiguan(updated)
+    api.updateTiguan(updated).then(() => showToast('Mod removed.')).catch(() => {})
+  }
+
+  // ----------------------------------------------------
+  // SECTION 6: FRIENDS & FILM
+  // ----------------------------------------------------
+  const [friendsPhotos, setFriendsPhotos] = useState([])
+  const [friendPhotoUrl, setFriendPhotoUrl] = useState('')
+  const [friendPhotoTitle, setFriendPhotoTitle] = useState('')
+  const [friendPhotoMeta, setFriendPhotoMeta] = useState('')
+
+  const handleAddFriendPhoto = async (e) => {
+    e.preventDefault()
+    if (!friendPhotoUrl.trim()) {
+      showToast('Photo URL is required.', true)
+      return
+    }
+    try {
+      const created = await api.createFriendsPhoto({
+        url: friendPhotoUrl.trim(),
+        title: friendPhotoTitle.trim() || 'Untitled film snapshot',
+        meta: friendPhotoMeta.trim() || 'Film • 35mm',
+        order_index: friendsPhotos.length
+      })
+      setFriendsPhotos((prev) => [...prev, created])
+      setFriendPhotoUrl('')
+      setFriendPhotoTitle('')
+      setFriendPhotoMeta('')
+      showToast('Photo added to Friends & Film gallery.')
+    } catch (err) {
+      showToast(err.message || 'Failed to add photo', true)
+    }
+  }
+
+  const handleDeleteFriendPhoto = async (id) => {
+    if (!window.confirm('Delete this photo?')) return
+    try {
+      await api.deleteFriendsPhoto(id)
+      setFriendsPhotos((prev) => prev.filter((p) => p.id !== id))
+      showToast('Photo deleted.')
+    } catch (err) {
+      showToast(err.message || 'Failed to delete photo', true)
+    }
+  }
+
+  // ----------------------------------------------------
+  // SECTION 7: CAT (MOCHI)
+  // ----------------------------------------------------
+  const [cat, setCat] = useState({
+    name: 'Mochi',
+    role: 'Chief QA & Keyboard Blocker',
+    pats: 0,
+    photos: []
+  })
+  const [newCatPhotoUrl, setNewCatPhotoUrl] = useState('')
+  const [newCatPhotoCaption, setNewCatPhotoCaption] = useState('')
+
+  const handleCatSave = async () => {
+    try {
+      await api.updateCat(cat)
+      showToast('Cat profile updated.')
+    } catch (err) {
+      showToast(err.message || 'Failed to save cat profile', true)
+    }
+  }
+
+  const handleAddCatPhoto = () => {
+    if (!newCatPhotoUrl.trim()) return
+    const nextPhotos = [
+      ...(cat.photos || []),
+      { id: Date.now(), url: newCatPhotoUrl.trim(), caption: newCatPhotoCaption.trim() }
+    ]
+    const updated = { ...cat, photos: nextPhotos }
+    setCat(updated)
+    setNewCatPhotoUrl('')
+    setNewCatPhotoCaption('')
+    api.updateCat(updated).then(() => showToast('Photo added to Cat.')).catch(() => {})
+  }
+
+  const handleRemoveCatPhoto = (id) => {
+    const nextPhotos = (cat.photos || []).filter((p) => p.id !== id)
+    const updated = { ...cat, photos: nextPhotos }
+    setCat(updated)
+    api.updateCat(updated).then(() => showToast('Photo removed.')).catch(() => {})
+  }
+
+  // ----------------------------------------------------
+  // SECTION 8: SECURITY
+  // ----------------------------------------------------
   const [newUsername, setNewUsername] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
+  const [savingSecurity, setSavingSecurity] = useState(false)
 
-  // Feedback notifications
-  const [toast, setToast] = useState(null)
-  const formRef = useRef(null)
-  const fileInputRef = useRef(null)
-  const photoInputRef = useRef(null)
-  const docMediaInputRef = useRef(null)
-  const multiDocsInputRef = useRef(null)
-  const [uploadingDocMedia, setUploadingDocMedia] = useState(false)
-  const [uploadingMultiDocs, setUploadingMultiDocs] = useState(false)
-
-  const showToast = (message, isError = false) => {
-    setToast({ message, isError })
-    setTimeout(() => setToast(null), 4000)
+  const handleAccountUpdate = async (e) => {
+    e.preventDefault()
+    if (newPassword && newPassword.length < 4) {
+      showToast('Password must be at least 4 characters long.', true)
+      return
+    }
+    if (newPassword && newPassword !== confirmPassword) {
+      showToast('Passwords do not match.', true)
+      return
+    }
+    setSavingSecurity(true)
+    try {
+      const res = await api.updateAccount({
+        username: newUsername || undefined,
+        password: newPassword || undefined
+      })
+      if (res.token) api.authSaveToken(res.token)
+      if (res.username) setWho(res.username)
+      setNewPassword('')
+      setConfirmPassword('')
+      showToast('Credentials updated in Supabase.')
+    } catch (err) {
+      showToast(err.message || 'Failed to update credentials', true)
+    } finally {
+      setSavingSecurity(false)
+    }
   }
 
+  // ----------------------------------------------------
+  // INITIAL DATA LOADER
+  // ----------------------------------------------------
   const loadAll = () => {
     Promise.all([
-      api.projects('all'),
-      api.profile(),
-      api.services('all'),
-      api.awards('all'),
-      api.pictures('all'),
-      api.bio()
-    ])
-      .then(([prList, prof, sList, aList, picList, bioData]) => {
-        if (Array.isArray(prList)) setProjects(prList)
-        if (prof) {
-          setProfile({
-            ...prof,
-            instagram_url: prof.instagram_url || prof.x_url || ''
-          })
-        }
-        if (Array.isArray(sList)) setServicesList(sList)
-        if (Array.isArray(aList)) setAwardsList(aList)
-        if (Array.isArray(picList)) setPicturesList(picList)
-        if (bioData) {
-          setBio({
-            subtitle: bioData.subtitle || '1 YEAR IN WEB DEVELOPMENT',
-            paragraph_1: bioData.paragraph_1 || '',
-            paragraph_2: bioData.paragraph_2 || '',
-            content: bioData.content || ''
-          })
-        }
-      })
-      .catch((err) => showToast(err.message, true))
+      api.profile().catch(() => null),
+      api.bio().catch(() => null),
+      api.experiences('all').catch(() => []),
+      api.projects('all').catch(() => []),
+      api.music().catch(() => ({ albums: [] })),
+      api.tiguan().catch(() => ({})),
+      api.friends().catch(() => ({ photos: [] })),
+      api.cat().catch(() => ({}))
+    ]).then(([prof, bioData, expList, projList, musicRes, tiguanRes, friendsRes, catRes]) => {
+      if (prof) {
+        setProfile((prev) => ({
+          ...prev,
+          name: prof.name ?? prev.name,
+          hero: prof.hero ?? prev.hero,
+          who_am_i: prof.who_am_i || prev.who_am_i,
+          what_i_did: prof.what_i_did || prev.what_i_did,
+          school: prof.school || prev.school,
+          photo: prof.photo || prev.photo,
+          email: prof.email || prev.email,
+          linkedin_url: prof.linkedin_url || prev.linkedin_url,
+          github_url: prof.github_url || prev.github_url,
+          instagram_url: prof.instagram_url || prof.x_url || prev.instagram_url,
+          spotify_url: prof.spotify_url || prev.spotify_url,
+          motto: prof.motto || prev.motto
+        }))
+      }
+      if (Array.isArray(expList)) setExperiencesList(expList)
+      if (Array.isArray(projList)) setProjectsList(projList)
+      if (musicRes?.albums) setMusicAlbums(musicRes.albums)
+      if (tiguanRes && tiguanRes.title) setTiguan(tiguanRes)
+      if (friendsRes?.photos) setFriendsPhotos(friendsRes.photos)
+      if (catRes && catRes.name) setCat(catRes)
+    })
   }
 
-  // Check auth status on mount
+  const checkConnection = async () => {
+    try {
+      const status = await api.authStatus()
+      setServerOnline(true)
+      if (status.needsSetup) {
+        setAuthView('setup')
+        return
+      }
+      if (!localStorage.getItem('token')) {
+        setAuthView('login')
+        return
+      }
+      try {
+        const me = await api.authMe()
+        setWho(me.username)
+        setNewUsername(me.username)
+        setAuthView('ok')
+        loadAll()
+      } catch {
+        api.authLogout()
+        setAuthView('login')
+      }
+    } catch {
+      setServerOnline(false)
+      setAuthView('login')
+      setAuthErr('Could not reach API server on port 4000. Start it using "npm run dev".')
+    }
+  }
+
   useEffect(() => {
-    api
-      .authStatus()
-      .then(async ({ needsSetup }) => {
-        if (needsSetup) {
-          setAuthView('setup')
-          return
-        }
-        if (!localStorage.getItem('token')) {
-          setAuthView('login')
-          return
-        }
-        try {
-          const me = await api.authMe()
-          setWho(me.username)
-          setNewUsername(me.username)
-          setAuthView('ok')
-          loadAll()
-        } catch {
-          api.authLogout()
-          setAuthView('login')
-        }
-      })
-      .catch(() => setAuthView('login'))
+    checkConnection()
   }, [])
 
-  // Login handler
+  // ----------------------------------------------------
+  // AUTH HANDLERS
+  // ----------------------------------------------------
   const handleLogin = async (e) => {
     e.preventDefault()
     setAuthErr('')
@@ -193,7 +661,6 @@ export default function Admin() {
     }
   }
 
-  // Setup handler (first-time only)
   const handleSetup = async (e) => {
     e.preventDefault()
     setAuthErr('')
@@ -210,18 +677,17 @@ export default function Admin() {
       setPasswordInput('')
       setAuthView('ok')
       loadAll()
-      showToast('Admin account created successfully.')
+      showToast('Admin initialized successfully.')
     } catch (ex) {
       setAuthErr(ex.message || 'Setup failed.')
     }
   }
 
-  // Local reset handler (for when credentials are forgotten)
   const handleResetLocal = async (e) => {
     e.preventDefault()
     setAuthErr('')
     if (passwordInput.length < 4) {
-      setAuthErr('Password must be at least 4 characters long.')
+      setAuthErr('Password must be at least 4 characters.')
       return
     }
     try {
@@ -232,13 +698,12 @@ export default function Admin() {
       setPasswordInput('')
       setAuthView('ok')
       loadAll()
-      showToast(`Admin account updated & logged in as ${res.username}.`)
+      showToast(`Admin updated & logged in as ${res.username}.`)
     } catch (ex) {
       setAuthErr(ex.message || 'Reset failed.')
     }
   }
 
-  // Logout handler
   const handleLogout = () => {
     api.authLogout()
     setWho('')
@@ -246,2144 +711,1624 @@ export default function Admin() {
     showToast('Logged out.')
   }
 
-  // Image Upload handler for Project
-  const handleProjectImageUpload = async (file) => {
-    if (!file) return
-    setUploadingImage(true)
-    try {
-      const res = await api.upload(file)
-      if (res && res.path) {
-        setProjForm((prev) => ({ ...prev, image: res.path }))
-        showToast('Image uploaded and attached.')
-      }
-    } catch (ex) {
-      showToast(ex.message || 'Upload failed', true)
-    } finally {
-      setUploadingImage(false)
-    }
-  }
-
-  // Photo Upload handler for Profile
-  const handleProfilePhotoUpload = async (file) => {
-    if (!file) return
-    setUploadingPhoto(true)
-    try {
-      const res = await api.upload(file)
-      if (res && res.path) {
-        setProfile((prev) => ({ ...prev, photo: res.path }))
-        await api.updateProfile({ photo: res.path })
-        api.pictures('all').then((pList) => {
-          if (Array.isArray(pList)) setPicturesList(pList)
-        }).catch(() => {})
-        showToast('Profile photo uploaded and synchronized to Supabase.')
-      }
-    } catch (ex) {
-      showToast(ex.message || 'Photo upload failed', true)
-    } finally {
-      setUploadingPhoto(false)
-    }
-  }
-
-  // Documentation (Monitor Media) Upload handler
-  const handleDocumentationUpload = async (file) => {
-    if (!file) return
-    setUploadingDocMedia(true)
-    try {
-      const res = await api.upload(file)
-      if (res && res.path) {
-        setProjForm((prev) => ({ ...prev, documentation: res.path }))
-        showToast('Hero documentation media uploaded.')
-      }
-    } catch (ex) {
-      showToast(ex.message || 'Documentation upload failed', true)
-    } finally {
-      setUploadingDocMedia(false)
-    }
-  }
-
-  // Multiple Picture Docs Upload handler
-  const handleMultiDocsUpload = async (files) => {
-    if (!files || !files.length) return
-    setUploadingMultiDocs(true)
-    try {
-      const list = Array.from(files)
-      const uploadPromises = list.map((f) => api.upload(f))
-      const results = await Promise.all(uploadPromises)
-      const paths = results.filter((r) => r?.path).map((r) => r.path)
-      setProjForm((prev) => {
-        const existing = typeof prev.picture_docs === 'string'
-          ? prev.picture_docs.split('\n').map((s) => s.trim()).filter(Boolean)
-          : Array.isArray(prev.picture_docs) ? prev.picture_docs : []
-        const combined = [...existing, ...paths]
-        return { ...prev, picture_docs: combined.join('\n') }
-      })
-      showToast(`Uploaded ${paths.length} documentation pictures.`)
-    } catch (ex) {
-      showToast(ex.message || 'Picture documentation upload failed', true)
-    } finally {
-      setUploadingMultiDocs(false)
-    }
-  }
-
-  // Project Submit (Create or Update)
-  const handleProjectSubmit = async (e) => {
-    e.preventDefault()
-    if (!projForm.title.trim()) {
-      showToast('Project title is required.', true)
-      return
-    }
-
-    const payload = {
-      title: projForm.title,
-      category: projForm.category || 'General',
-      progress: Number(projForm.progress) || 3,
-      description: projForm.description,
-      url: projForm.url,
-      image: projForm.image,
-      published: projForm.published,
-      client: projForm.client,
-      brief: projForm.brief,
-      engagement: projForm.engagement,
-      documentation: projForm.documentation,
-      challenge: projForm.challenge,
-      approach: projForm.approach,
-      picture_docs: projForm.picture_docs,
-      quote: projForm.quote,
-      outcome: projForm.outcome
-    }
-
-    try {
-      if (editingId) {
-        // Update existing project
-        const updated = await api.updateProject(editingId, payload)
-        setProjects((prev) => prev.map((p) => (p.id === editingId ? updated : p)))
-        showToast(`Project #${editingId} updated successfully.`)
-        handleCancelEdit()
-      } else {
-        // Create new project
-        const created = await api.createProject(payload)
-        setProjects((prev) => [created, ...prev])
-        setProjForm(emptyProject)
-        showToast('New project published.')
-      }
-    } catch (ex) {
-      showToast(ex.message || 'Operation failed', true)
-    }
-  }
-
-  // Trigger Edit
-  const startEditing = (p) => {
-    setEditingId(p.id)
-    setProjForm({
-      title: p.title || '',
-      category: p.category || 'OPERATIONS',
-      progress: p.progress || 3,
-      description: p.description || '',
-      url: p.url || '',
-      image: p.image || '',
-      published: Boolean(p.published),
-      client: p.client || '',
-      brief: p.brief || '',
-      engagement: p.engagement || '',
-      documentation: p.documentation || '',
-      challenge: p.challenge || '',
-      approach: p.approach || '',
-      picture_docs: Array.isArray(p.picture_docs) ? p.picture_docs.join('\n') : (p.picture_docs || ''),
-      quote: p.quote || '',
-      outcome: p.outcome || ''
-    })
-    if (formRef.current) {
-      formRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' })
-    }
-  }
-
-  // Cancel Edit
-  const handleCancelEdit = () => {
-    setEditingId(null)
-    setProjForm(emptyProject)
-  }
-
-  // Toggle Publish
-  const handleTogglePublish = async (p) => {
-    try {
-      const updated = await api.updateProject(p.id, { published: !p.published })
-      setProjects((prev) => prev.map((item) => (item.id === p.id ? updated : item)))
-      showToast(`Project #${p.id} set to ${updated.published ? 'Published' : 'Draft'}.`)
-    } catch (ex) {
-      showToast(ex.message || 'Toggle failed', true)
-    }
-  }
-
-  // Delete Project
-  const handleDeleteProject = async (p) => {
-    if (!window.confirm(`Are you sure you want to delete "${p.title}"? This cannot be undone.`)) {
-      return
-    }
-    try {
-      await api.deleteProject(p.id)
-      setProjects((prev) => prev.filter((item) => item.id !== p.id))
-      if (editingId === p.id) handleCancelEdit()
-      showToast(`Project "${p.title}" deleted.`)
-    } catch (ex) {
-      showToast(ex.message || 'Delete failed', true)
-    }
-  }
-
-  // Normalize external URLs to include https:// if missing
-  const normalizeUrl = (url) => {
-    if (!url || typeof url !== 'string') return ''
-    const trimmed = url.trim()
-    if (!trimmed) return ''
-    if (/^https?:\/\//i.test(trimmed)) return trimmed
-    return `https://${trimmed}`
-  }
-
-  // Save Profile Info
-  const handleSaveProfile = async (e) => {
-    e.preventDefault()
-    try {
-      const ig = normalizeUrl(profile.instagram_url || profile.x_url || '')
-      const gh = normalizeUrl(profile.github_url || '')
-      const li = normalizeUrl(profile.linkedin_url || '')
-
-      const payload = {
-        ...profile,
-        instagram_url: ig,
-        x_url: ig,
-        github_url: gh,
-        linkedin_url: li
-      }
-      const updated = await api.updateProfile(payload)
-      setProfile((prev) => ({
-        ...prev,
-        ...updated,
-        instagram_url: updated.instagram_url || updated.x_url || prev.instagram_url
-      }))
-      showToast('Profile information saved.')
-    } catch (ex) {
-      showToast(ex.message || 'Failed to save profile', true)
-    }
-  }
-
-  // Save About Section Bio (Supabase public.bio)
-  const handleSaveBio = async (e) => {
-    e.preventDefault()
-    setSavingBio(true)
-    try {
-      const payload = {
-        subtitle: bio.subtitle || '1 YEAR IN WEB DEVELOPMENT',
-        paragraph_1: bio.paragraph_1 || '',
-        paragraph_2: bio.paragraph_2 || '',
-        content: [bio.paragraph_1, bio.paragraph_2].filter(Boolean).join('\n\n')
-      }
-      const updated = await api.updateBio(payload)
-      if (updated) {
-        setBio({
-          subtitle: updated.subtitle || payload.subtitle,
-          paragraph_1: updated.paragraph_1 || payload.paragraph_1,
-          paragraph_2: updated.paragraph_2 || payload.paragraph_2,
-          content: updated.content || payload.content
-        })
-      }
-      showToast('About Section Bio saved and synced to Supabase!')
-    } catch (ex) {
-      showToast(ex.message || 'Failed to save bio', true)
-    } finally {
-      setSavingBio(false)
-    }
-  }
-
-  // Save Account Credentials (change username/password)
-  const handleSaveSecurity = async (e) => {
-    e.preventDefault()
-    if (newPassword && newPassword.length < 4) {
-      showToast('Password must be at least 4 characters long.', true)
-      return
-    }
-    if (newPassword && newPassword !== confirmPassword) {
-      showToast('Passwords do not match.', true)
-      return
-    }
-
-    try {
-      const res = await api.updateAccount({
-        username: newUsername,
-        password: newPassword || undefined
-      })
-      if (res && res.token) {
-        api.authSaveToken(res.token)
-        setWho(res.username)
-      }
-      setNewPassword('')
-      setConfirmPassword('')
-      showToast('Account credentials updated successfully. Token refreshed.')
-    } catch (ex) {
-      showToast(ex.message || 'Failed to update account', true)
-    }
-  }
-
-  // Service Handlers
-  const handleSaveService = async (e) => {
-    e.preventDefault()
-    if (!serviceForm.title.trim()) {
-      showToast('Service title is required.', true)
-      return
-    }
-    try {
-      if (editingServiceId) {
-        const updated = await api.updateService(editingServiceId, serviceForm)
-        setServicesList((prev) => prev.map((s) => (s.id === editingServiceId ? updated : s)))
-        showToast('Service updated successfully.')
-        setEditingServiceId(null)
-      } else {
-        const created = await api.createService(serviceForm)
-        setServicesList((prev) => [...prev, created])
-        showToast('Service created successfully.')
-      }
-      setServiceForm({ title: '', description: '', link: '', order_index: 0, published: true })
-    } catch (ex) {
-      showToast(ex.message || 'Failed to save service', true)
-    }
-  }
-
-  const handleEditService = (s) => {
-    setEditingServiceId(s.id)
-    setServiceForm({
-      title: s.title || '',
-      description: s.description || '',
-      link: s.link || '',
-      order_index: s.order_index ?? 0,
-      published: s.published !== undefined ? Boolean(s.published) : true
-    })
-  }
-
-  const handleDeleteService = async (id) => {
-    if (!window.confirm('Delete this service permanently?')) return
-    try {
-      await api.deleteService(id)
-      setServicesList((prev) => prev.filter((s) => s.id !== id))
-      showToast('Service deleted.')
-    } catch (ex) {
-      showToast(ex.message || 'Failed to delete service', true)
-    }
-  }
-
-  // Award / Course Handlers
-  const handleSaveAward = async (e) => {
-    e.preventDefault()
-    if (!awardForm.title.trim()) {
-      showToast('Award/Course title is required.', true)
-      return
-    }
-    try {
-      if (editingAwardId) {
-        const updated = await api.updateAward(editingAwardId, awardForm)
-        setAwardsList((prev) => prev.map((a) => (a.id === editingAwardId ? updated : a)))
-        showToast('Award/Course updated successfully.')
-        setEditingAwardId(null)
-      } else {
-        const created = await api.createAward(awardForm)
-        setAwardsList((prev) => [...prev, created])
-        showToast('Award/Course created successfully.')
-      }
-      setAwardForm({ title: '', description: '', link: '', order_index: 0, published: true })
-    } catch (ex) {
-      showToast(ex.message || 'Failed to save award/course', true)
-    }
-  }
-
-  const handleEditAward = (a) => {
-    setEditingAwardId(a.id)
-    setAwardForm({
-      title: a.title || '',
-      description: a.description || '',
-      link: a.link || '',
-      order_index: a.order_index ?? 0,
-      published: a.published !== undefined ? Boolean(a.published) : true
-    })
-  }
-
-  const handleDeleteAward = async (id) => {
-    if (!window.confirm('Delete this award/course permanently?')) return
-    try {
-      await api.deleteAward(id)
-      setAwardsList((prev) => prev.filter((a) => a.id !== id))
-      showToast('Award/Course deleted.')
-    } catch (ex) {
-      showToast(ex.message || 'Failed to delete award/course', true)
-    }
-  }
-
-  // Pictures & Media Handlers (Supabase Auto-Sync)
-  const handlePictureUpload = async (file) => {
-    if (!file) return
-    setUploadingPicMedia(true)
-    try {
-      const res = await api.upload(file)
-      if (res && res.path) {
-        const cleanName = (file.name || 'image').replace(/\.[^/.]+$/, '').toLowerCase().replace(/[^a-z0-9_-]/g, '_')
-        setPictureForm((prev) => ({
-          ...prev,
-          url: res.path,
-          name: prev.name || cleanName,
-          title: prev.title || file.name.replace(/\.[^/.]+$/, '')
-        }))
-        showToast('Image uploaded directly to Supabase Storage.')
-      }
-    } catch (ex) {
-      showToast(ex.message || 'Upload failed', true)
-    } finally {
-      setUploadingPicMedia(false)
-    }
-  }
-
-  const handleSavePicture = async (e) => {
-    e.preventDefault()
-    if (!pictureForm.url.trim()) {
-      showToast('Picture URL or uploaded file is required.', true)
-      return
-    }
-    const cleanName = (pictureForm.name || pictureForm.title || `pic_${Date.now()}`)
-      .toLowerCase()
-      .replace(/[^a-z0-9_-]/g, '_')
-
-    const payload = {
-      ...pictureForm,
-      name: cleanName
-    }
-
-    try {
-      if (editingPicId) {
-        const updated = await api.updatePicture(editingPicId, payload)
-        setPicturesList((prev) => prev.map((p) => (p.id === editingPicId ? updated : p)))
-        showToast('Picture updated in Supabase.')
-        setEditingPicId(null)
-      } else {
-        const created = await api.createPicture(payload)
-        setPicturesList((prev) => [created, ...prev])
-        showToast('Picture saved directly to Supabase.')
-      }
-      setPictureForm({
-        name: '',
-        title: '',
-        category: 'profile',
-        url: '',
-        alt_text: '',
-        description: '',
-        order_index: 0,
-        published: true
-      })
-    } catch (ex) {
-      showToast(ex.message || 'Failed to save picture in Supabase', true)
-    }
-  }
-
-  const handleEditPicture = (p) => {
-    setEditingPicId(p.id)
-    setPictureForm({
-      name: p.name || '',
-      title: p.title || '',
-      category: p.category || 'profile',
-      url: p.url || '',
-      alt_text: p.alt_text || '',
-      description: p.description || '',
-      order_index: p.order_index ?? 0,
-      published: p.published !== undefined ? Boolean(p.published) : true
-    })
-  }
-
-  const handleDeletePicture = async (id) => {
-    if (!window.confirm('Delete this picture record from Supabase permanently?')) return
-    try {
-      await api.deletePicture(id)
-      setPicturesList((prev) => prev.filter((p) => p.id !== id))
-      showToast('Picture deleted from Supabase.')
-    } catch (ex) {
-      showToast(ex.message || 'Failed to delete picture', true)
-    }
-  }
-
-  // RENDER: Loading
+  // ----------------------------------------------------
+  // RENDER: LOADING STATE (Skeleton Loading)
+  // ----------------------------------------------------
   if (authView === 'loading') {
     return (
-      <div className="nb-admin-root" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <div style={{ textAlign: 'center' }}>
-          <span className="nb-admin-badge">SYSTEM // INITIALIZING</span>
-          <p className="mono-micro" style={{ marginTop: '16px', color: 'rgba(250, 248, 245, 0.6)' }}>
-            LOADING SECURE CONSOLE…
-          </p>
+      <div className="max-w-[760px] mx-auto px-4 py-4">
+        <Header currentPath="/admin" subtitle="content management console • connecting to database…" />
+
+        {/* Status bar skeleton */}
+        <div className="flex items-center justify-between gap-2 pb-3 mb-4 border-b border-[#c8c6be]">
+          <div className="skeleton w-44 h-5 rounded-sm"></div>
+          <div className="skeleton w-28 h-5 rounded-sm"></div>
+        </div>
+
+        {/* Tab buttons skeleton */}
+        <div className="flex flex-wrap items-center gap-1.5 mb-5">
+          {['whoami', 'experiences', 'projects', 'music', 'tiguan', 'friends', 'cat', 'security'].map((t) => (
+            <div key={t} className="skeleton w-20 h-6 rounded-sm"></div>
+          ))}
+        </div>
+
+        {/* Content Box Skeleton */}
+        <div className="cmd-box">
+          <div className="cmd-header">database // connecting...</div>
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <div className="skeleton skeleton-text w-24"></div>
+                <div className="skeleton h-8 w-full rounded-sm"></div>
+              </div>
+              <div className="space-y-1.5">
+                <div className="skeleton skeleton-text w-32"></div>
+                <div className="skeleton h-8 w-full rounded-sm"></div>
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <div className="skeleton skeleton-text w-40"></div>
+              <div className="skeleton h-16 w-full rounded-sm"></div>
+            </div>
+
+            <div className="space-y-1.5">
+              <div className="skeleton skeleton-text w-48"></div>
+              <div className="skeleton h-16 w-full rounded-sm"></div>
+            </div>
+
+            <div className="skeleton w-40 h-8 rounded-sm mt-3"></div>
+          </div>
         </div>
       </div>
     )
   }
 
-  // RENDER: Auth Screen (Login or Setup)
+  // ----------------------------------------------------
+  // RENDER: LOGIN / SETUP SCREEN (Matching Home Page Aesthetic)
+  // ----------------------------------------------------
   if (authView === 'setup' || authView === 'login') {
     return (
-      <div className="nb-admin-root">
-        {/* Minimal Header */}
-        <header className="nb-admin-header">
-          <div className="nb-admin-header-inner">
-            <a href="/" className="nb-admin-brand">
-              <span className="kjoy-bizcard-monogram" style={{ width: '28px', height: '28px', fontSize: '13px' }}>
-                K
-              </span>
-              <span className="mono-micro" style={{ letterSpacing: '0.12em' }}>
-                KHAIRI NUGROHO
-              </span>
-            </a>
-            <a href="/" className="nb-btn nb-btn-outline nb-btn-sm">
-              ← BACK TO WEBSITE
-            </a>
-          </div>
-        </header>
+      <div className="max-w-[540px] mx-auto px-4 py-8">
+        <Header currentPath="/admin" subtitle="admin control • authentication gate" />
 
-        <div className="nb-auth-stage">
-          <div className="nb-auth-card">
-            <div style={{ marginBottom: '24px' }}>
-              <div className="nb-admin-badge" style={{ marginBottom: '12px' }}>
-                {authView === 'setup'
-                  ? '[FIRST-TIME INITIALIZATION]'
-                  : authMode === 'reset'
-                    ? '[LOCAL CREDENTIALS RESET]'
-                    : '[AUTHENTICATED ACCESS ONLY]'}
-              </div>
-              <h1 className="nb-admin-title" style={{ fontSize: '32px' }}>
-                {authView === 'setup'
-                  ? 'CREATE ADMIN'
-                  : authMode === 'reset'
-                    ? 'SET PASSWORD'
-                    : 'ADMIN LOGIN'}
-              </h1>
-              <p className="mono-micro" style={{ color: 'rgba(250, 248, 245, 0.6)', marginTop: '8px' }}>
-                {authView === 'setup'
-                  ? 'First time here. Set your admin credentials. Stored securely in database, never in git.'
-                  : authMode === 'reset'
-                    ? 'Type your preferred username & password below. Will update MySQL and log in immediately.'
-                    : 'Enter your credentials to manage projects and site content.'}
-              </p>
+        <div className="cmd-box mt-4">
+          <div className="cmd-header">
+            {authView === 'setup'
+              ? 'setup_admin.exe'
+              : authMode === 'reset'
+                ? 'reset_credentials.exe'
+                : 'admin_login.exe'}
+          </div>
+
+          {/* Connection Status & Default Credentials Pill */}
+          <div className="mb-4 p-2.5 bg-white border border-[#c8c6be] text-xs font-mono rounded-sm">
+            <div className="flex items-center justify-between gap-2 pb-1.5 border-b border-[#e5e3dc] text-[11px]">
+              <span className="flex items-center gap-1.5 text-emerald-700 font-semibold">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 inline-block"></span>
+                SUPABASE: CONNECTED
+              </span>
+              <span className={`flex items-center gap-1.5 font-semibold ${serverOnline ? 'text-emerald-700' : 'text-red-600'}`}>
+                <span className={`w-1.5 h-1.5 rounded-full ${serverOnline ? 'bg-emerald-600' : 'bg-red-500'} inline-block`}></span>
+                SERVER: {serverOnline ? 'PORT 4000 ONLINE' : 'OFFLINE'}
+              </span>
             </div>
 
-            {authErr && (
-              <div
-                style={{
-                  background: 'rgba(239, 68, 68, 0.1)',
-                  border: '1px solid #ef4444',
-                  color: '#f87171',
-                  padding: '12px 14px',
-                  fontFamily: 'var(--font-mono)',
-                  fontSize: '11px',
-                  marginBottom: '20px'
-                }}
-              >
-                [AUTH ERROR] {authErr}
-              </div>
-            )}
-
-            <form
-              onSubmit={
-                authView === 'setup'
-                  ? handleSetup
-                  : authMode === 'reset'
-                    ? handleResetLocal
-                    : handleLogin
-              }
-            >
-              <div className="nb-form-group" style={{ marginBottom: '18px' }}>
-                <label className="nb-label">USERNAME</label>
-                <input
-                  type="text"
-                  className="nb-input"
-                  value={usernameInput}
-                  onChange={(e) => setUsernameInput(e.target.value)}
-                  placeholder="admin username"
-                  required
-                  autoFocus
-                />
-              </div>
-
-              <div className="nb-form-group" style={{ marginBottom: '26px' }}>
-                <label className="nb-label">
-                  PASSWORD {authView === 'setup' && '(MIN 4 CHARACTERS)'}
-                </label>
-                <input
-                  type="password"
-                  className="nb-input"
-                  value={passwordInput}
-                  onChange={(e) => setPasswordInput(e.target.value)}
-                  placeholder="••••••••"
-                  required
-                />
-              </div>
-
+            <div className="pt-2 flex items-center justify-between flex-wrap gap-2 text-[11.5px]">
+              <span>
+                Default Login: <strong className="text-black">khairi</strong> / <strong className="text-black">admin123</strong>
+              </span>
               <button
-                type="submit"
-                className="nb-btn nb-btn-primary"
-                style={{ width: '100%', padding: '14px' }}
+                type="button"
+                onClick={() => {
+                  setUsernameInput('khairi')
+                  setPasswordInput('admin123')
+                  setAuthErr('')
+                }}
+                className="link-badge !text-[10px] !bg-[#1b1c18] !text-white !border-[#1b1c18] hover:!bg-[#333]"
               >
-                {authView === 'setup'
-                  ? 'INITIALIZE & LOG IN →'
-                  : authMode === 'reset'
-                    ? 'SET CREDENTIALS & LOG IN →'
-                    : 'ACCESS CONSOLE →'}
+                [Quick-Fill Credentials]
               </button>
-            </form>
-
-            {authView !== 'setup' && (
-              <div style={{ marginTop: '16px', textAlign: 'center' }}>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setAuthErr('')
-                    setAuthMode((prev) => (prev === 'login' ? 'reset' : 'login'))
-                  }}
-                  className="mono-micro"
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    color: '#7A0E22',
-                    textDecoration: 'underline',
-                    cursor: 'pointer',
-                    fontSize: '11px'
-                  }}
-                >
-                  {authMode === 'login'
-                    ? 'FORGOT PASSWORD? SET / RESET LOCALLY'
-                    : '← BACK TO STANDARD LOGIN'}
-                </button>
-              </div>
-            )}
-
-            <div style={{ marginTop: '24px', paddingTop: '16px', borderTop: '1px solid rgba(250, 248, 245, 0.1)' }}>
-              <p className="mono-micro" style={{ fontSize: '10px', color: 'rgba(250, 248, 245, 0.45)' }}>
-                CREDENTIALS SAFEGUARDED • BCRYPT 10 ROUNDS • ZERO HARDCODED KEYS
-              </p>
             </div>
           </div>
+
+          {!serverOnline && (
+            <div className="mb-4 p-2.5 bg-red-50 border border-red-300 text-red-800 text-xs font-mono rounded-sm">
+              <strong className="block mb-1">⚠️ Server is offline</strong>
+              Run <code className="bg-black text-green-400 px-1 py-0.5 rounded">npm run dev</code> in your terminal.
+              <button
+                onClick={checkConnection}
+                className="mt-2 block text-xs underline font-semibold text-red-700 hover:text-black"
+              >
+                ↻ Retry Connection
+              </button>
+            </div>
+          )}
+
+          {authErr && (
+            <div className="mb-4 p-2.5 bg-red-50 border border-red-300 text-red-800 text-xs font-mono rounded-sm">
+              [AUTH ERROR] {authErr}
+            </div>
+          )}
+
+          <form onSubmit={authView === 'setup' ? handleSetup : authMode === 'reset' ? handleResetLocal : handleLogin} className="space-y-3">
+            <div>
+              <label className="admin-label">Username</label>
+              <input
+                type="text"
+                className="admin-input"
+                value={usernameInput}
+                onChange={(e) => setUsernameInput(e.target.value)}
+                placeholder="e.g. khairi"
+                required
+                autoFocus
+              />
+            </div>
+
+            <div>
+              <label className="admin-label">
+                Password {authView === 'setup' && '(Min 4 chars)'}
+              </label>
+              <input
+                type="password"
+                className="admin-input"
+                value={passwordInput}
+                onChange={(e) => setPasswordInput(e.target.value)}
+                placeholder="••••••••"
+                required
+              />
+            </div>
+
+            <button type="submit" className="admin-btn-primary w-full justify-center !py-2 mt-2">
+              {authView === 'setup'
+                ? 'INITIALIZE ADMIN →'
+                : authMode === 'reset'
+                  ? 'UPDATE PASSWORD & SIGN IN →'
+                  : 'AUTHENTICATE & ENTER →'}
+            </button>
+          </form>
+
+          {authView !== 'setup' && (
+            <div className="mt-4 pt-3 border-t border-[#e2e0d8] text-center">
+              <button
+                type="button"
+                onClick={() => {
+                  setAuthErr('')
+                  setAuthMode((prev) => (prev === 'login' ? 'reset' : 'login'))
+                }}
+                className="text-xs font-mono text-terminal-prompt underline hover:text-black"
+              >
+                {authMode === 'login'
+                  ? 'Forgot password? Set / Reset locally in Supabase'
+                  : '← Return to standard login'}
+              </button>
+            </div>
+          )}
         </div>
       </div>
     )
   }
 
-  // RENDER: Main Admin Console
+  // ----------------------------------------------------
+  // RENDER: MAIN ADMIN CONSOLE (Matching Home Page Aesthetic)
+  // ----------------------------------------------------
   return (
-    <div className="nb-admin-root">
+    <div className="max-w-[760px] mx-auto px-4 py-4">
+      {/* Hidden File Input for Image Uploads */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        onChange={handleFileUpload}
+        className="hidden"
+      />
+
+      {/* Toast Notification */}
+      {toast && (
+        <div
+          className={`fixed bottom-4 right-4 z-50 px-3 py-2 border rounded shadow-md font-mono text-xs ${
+            toast.isError
+              ? 'bg-red-50 border-red-300 text-red-800'
+              : 'bg-[#1b1c18] border-[#1b1c18] text-white'
+          }`}
+        >
+          {toast.message}
+        </div>
+      )}
+
       {/* Top Header */}
-      <header className="nb-admin-header">
-        <div className="nb-admin-header-inner">
-          <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-            <a href="/" className="nb-admin-brand">
-              <span className="kjoy-bizcard-monogram" style={{ width: '32px', height: '32px', fontSize: '14px' }}>
-                K
-              </span>
-              <div>
-                <span className="mono-micro" style={{ fontWeight: 600, letterSpacing: '0.1em' }}>
-                  KHAIRI NUGROHO
-                </span>
-                <span className="mono-micro" style={{ display: 'block', fontSize: '9px', color: 'rgba(250, 248, 245, 0.4)' }}>
-                  PORTFOLIO HQ
-                </span>
-              </div>
-            </a>
-            <span className="nb-admin-badge">[CONTROL ROOM]</span>
+      <Header currentPath="/admin" subtitle="content management console • supabase connected" />
+
+      {/* System Status Banner */}
+      <div className="flex flex-wrap items-center justify-between gap-2 pb-3 mb-4 border-b border-[#c8c6be] text-xs font-mono">
+        <div className="flex items-center gap-2">
+          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-[#f0eee8] border border-[#a8a69e] rounded text-[11px] text-[#2b2b28]">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 inline-block animate-ping"></span>
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 inline-block -ml-3"></span>
+            <span>admin: {who}</span>
+          </span>
+          <span className="text-[11px] text-terminal-prompt hidden sm:inline">
+            supabase://jnttmmhomgtpnkpymhfl
+          </span>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <a
+            href="/"
+            className="link-badge font-mono text-[11px] !py-0.5 !px-2"
+          >
+            ← View Live Site
+          </a>
+          <button
+            onClick={handleLogout}
+            className="link-badge font-mono text-[11px] !py-0.5 !px-2 !bg-[#f7f5ef] hover:!bg-[#e5e2d8]"
+          >
+            Log Out ✕
+          </button>
+        </div>
+      </div>
+
+      {/* Navigation Tabs (Exactly matching Home Page sections!) */}
+      <div className="flex flex-wrap items-center gap-1.5 mb-5 font-mono text-xs">
+        <button
+          className={`tab-btn ${activeTab === 'whoami' ? 'active' : ''}`}
+          onClick={() => setActiveTab('whoami')}
+        >
+          whoami
+        </button>
+        <button
+          className={`tab-btn ${activeTab === 'experiences' ? 'active' : ''}`}
+          onClick={() => setActiveTab('experiences')}
+        >
+          experiences {experiencesList.length > 0 && `(${experiencesList.length})`}
+        </button>
+        <button
+          className={`tab-btn ${activeTab === 'projects' ? 'active' : ''}`}
+          onClick={() => setActiveTab('projects')}
+        >
+          projects {projectsList.length > 0 && `(${projectsList.length})`}
+        </button>
+        <button
+          className={`tab-btn ${activeTab === 'music' ? 'active' : ''}`}
+          onClick={() => setActiveTab('music')}
+        >
+          music {musicAlbums.length > 0 && `(${musicAlbums.length})`}
+        </button>
+        <button
+          className={`tab-btn ${activeTab === 'tiguan' ? 'active' : ''}`}
+          onClick={() => setActiveTab('tiguan')}
+        >
+          tiguan
+        </button>
+        <button
+          className={`tab-btn ${activeTab === 'friends' ? 'active' : ''}`}
+          onClick={() => setActiveTab('friends')}
+        >
+          friends {friendsPhotos.length > 0 && `(${friendsPhotos.length})`}
+        </button>
+        <button
+          className={`tab-btn ${activeTab === 'cat' ? 'active' : ''}`}
+          onClick={() => setActiveTab('cat')}
+        >
+          cat
+        </button>
+        <button
+          className={`tab-btn ${activeTab === 'security' ? 'active' : ''}`}
+          onClick={() => setActiveTab('security')}
+        >
+          security
+        </button>
+      </div>
+
+      {/* ==================================================== */}
+      {/* TAB 1: WHOAMI (Profile & Bio)                        */}
+      {/* ==================================================== */}
+      {activeTab === 'whoami' && (
+        <div className="cmd-box" id="section-admin-whoami">
+          <div className="cmd-header">whoami // profile &amp; bio</div>
+          <div className="text-xs text-on-surface-variant font-mono mb-4">
+            Edit introductory bio paragraphs, portrait photo, and public social links.
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-            <a href="/" className="nb-btn nb-btn-outline nb-btn-sm">
-              VIEW SITE ↗
-            </a>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <span className="mono-micro" style={{ color: 'rgba(250, 248, 245, 0.6)', fontSize: '10px' }}>
-                LOGGED IN AS: <strong style={{ color: '#FAF8F5' }}>{who}</strong>
-              </span>
-              <button type="button" onClick={handleLogout} className="nb-btn nb-btn-outline nb-btn-sm" style={{ borderColor: 'rgba(250, 248, 245, 0.2)' }}>
-                LOG OUT
+          <form onSubmit={handleProfileSubmit} className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="admin-label">Full Name</label>
+                <input
+                  type="text"
+                  className="admin-input"
+                  value={profile.name}
+                  onChange={(e) => setProfile({ ...profile, name: e.target.value })}
+                  placeholder="Khairi Nugroho"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="admin-label">Headline / Subtitle</label>
+                <input
+                  type="text"
+                  className="admin-input"
+                  value={profile.hero}
+                  onChange={(e) => setProfile({ ...profile, hero: e.target.value })}
+                  placeholder="systems engineer • builder • bay area, ca"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="admin-label">Bio Paragraph 1 (Who am I)</label>
+              <textarea
+                className="admin-input"
+                rows={2}
+                value={profile.who_am_i}
+                onChange={(e) => setProfile({ ...profile, who_am_i: e.target.value })}
+              />
+            </div>
+
+            <div>
+              <label className="admin-label">Bio Paragraph 2 (What I did / Current Focus)</label>
+              <textarea
+                className="admin-input"
+                rows={2}
+                value={profile.what_i_did}
+                onChange={(e) => setProfile({ ...profile, what_i_did: e.target.value })}
+              />
+            </div>
+
+            <div>
+              <label className="admin-label">Bio Paragraph 3 (Hobbies &amp; Personal)</label>
+              <textarea
+                className="admin-input"
+                rows={2}
+                value={profile.school}
+                onChange={(e) => setProfile({ ...profile, school: e.target.value })}
+              />
+            </div>
+
+            <div>
+              <label className="admin-label">Life Motto</label>
+              <input
+                type="text"
+                className="admin-input"
+                value={profile.motto}
+                onChange={(e) => setProfile({ ...profile, motto: e.target.value })}
+                placeholder="Precision is quiet; restraint speaks louder than ornamentation."
+              />
+            </div>
+
+            <div className="flex flex-col sm:flex-row gap-3 items-start">
+              {profile.photo ? (
+                <div className="shrink-0">
+                  <div className="border border-[#75736c] p-1 bg-white shadow-sm inline-block">
+                    <img
+                      src={profile.photo}
+                      alt="Portrait preview"
+                      className="w-16 h-20 object-cover"
+                      onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                    />
+                  </div>
+                  <div className="text-[10px] font-mono text-terminal-prompt text-center mt-0.5">preview</div>
+                </div>
+              ) : null}
+              <div className="flex-1 w-full">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
+                  <div className="sm:col-span-2">
+                    <label className="admin-label">Portrait Photo URL</label>
+                    <input
+                      type="text"
+                      className="admin-input"
+                      value={profile.photo}
+                      onChange={(e) => setProfile({ ...profile, photo: e.target.value })}
+                      placeholder="https://... or /uploads/img.jpg"
+                    />
+                  </div>
+                  <div>
+                    <button
+                      type="button"
+                      onClick={() => triggerUpload((url) => setProfile((p) => ({ ...p, photo: url })))}
+                      className="link-badge w-full justify-center !py-2 font-mono text-xs"
+                      disabled={uploading}
+                    >
+                      {uploading ? 'Uploading…' : '↑ Upload New Photo'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="pt-2 border-t border-[#e5e3dc]">
+              <div className="text-xs font-mono font-semibold text-terminal-prompt mb-3">
+                &gt; social links &amp; contact
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="admin-label">Email</label>
+                  <input
+                    type="email"
+                    className="admin-input"
+                    value={profile.email}
+                    onChange={(e) => setProfile({ ...profile, email: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label className="admin-label">LinkedIn URL</label>
+                  <input
+                    type="url"
+                    className="admin-input"
+                    value={profile.linkedin_url}
+                    onChange={(e) => setProfile({ ...profile, linkedin_url: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label className="admin-label">GitHub URL</label>
+                  <input
+                    type="url"
+                    className="admin-input"
+                    value={profile.github_url}
+                    onChange={(e) => setProfile({ ...profile, github_url: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label className="admin-label">Instagram URL</label>
+                  <input
+                    type="url"
+                    className="admin-input"
+                    value={profile.instagram_url}
+                    onChange={(e) => setProfile({ ...profile, instagram_url: e.target.value })}
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="pt-3">
+              <button
+                type="submit"
+                className="admin-btn-primary"
+                disabled={savingProfile}
+              >
+                {savingProfile ? 'Saving to Supabase…' : 'SAVE WHOAMI PROFILE →'}
               </button>
             </div>
-          </div>
+          </form>
         </div>
-      </header>
+      )}
 
-      {/* Main Container */}
-      <main className="nb-admin-container">
-        {/* Hero Title Row */}
-        <div className="nb-admin-title-row">
-          <div>
-            <div className="mono-micro" style={{ color: '#7A0E22', letterSpacing: '0.14em', fontWeight: 600 }}>
-              CONTENT &amp; PORTFOLIO ENGINE
+      {/* ==================================================== */}
+      {/* TAB 2: EXPERIENCES                                   */}
+      {/* ==================================================== */}
+      {activeTab === 'experiences' && (
+        <div className="space-y-6">
+          <div className="cmd-box" id="section-admin-experience">
+            <div className="cmd-header">
+              {editingExpId ? `experience // edit #${editingExpId}` : 'experience // add new entry'}
             </div>
-            <h1 className="nb-admin-title">ADMIN CONSOLE</h1>
-          </div>
-          <div style={{ display: 'flex', gap: '12px' }}>
-            <span className="nb-status-pill published">
-              <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#4ade80' }} />
-              SERVER // ONLINE
-            </span>
-            <span className="nb-status-pill draft">
-              {projects.length} PROJECTS REGISTERED
-            </span>
-          </div>
-        </div>
+            <div className="text-xs text-on-surface-variant font-mono mb-3">
+              Add or edit work history. When list is empty, the section is automatically hidden on the home page.
+            </div>
 
-        {/* Tab Navigation */}
-        <div className="nb-admin-tabs">
-          <button
-            type="button"
-            className={`nb-admin-tab ${activeTab === 'projects' ? 'active' : ''}`}
-            onClick={() => setActiveTab('projects')}
-          >
-            [01 // PROJECTS MANAGEMENT]
-          </button>
-          <button
-            type="button"
-            className={`nb-admin-tab ${activeTab === 'profile' ? 'active' : ''}`}
-            onClick={() => setActiveTab('profile')}
-          >
-            [02 // PROFILE &amp; BIO]
-          </button>
-          <button
-            type="button"
-            className={`nb-admin-tab ${activeTab === 'services' ? 'active' : ''}`}
-            onClick={() => setActiveTab('services')}
-          >
-            [03 // SERVICES &amp; AWARDS]
-          </button>
-          <button
-            type="button"
-            className={`nb-admin-tab ${activeTab === 'pictures' ? 'active' : ''}`}
-            onClick={() => setActiveTab('pictures')}
-          >
-            [04 // PICTURES &amp; MEDIA]
-          </button>
-          <button
-            type="button"
-            className={`nb-admin-tab ${activeTab === 'security' ? 'active' : ''}`}
-            onClick={() => setActiveTab('security')}
-          >
-            [05 // ACCOUNT SECURITY]
-          </button>
-        </div>
-
-        {/* ================= TAB 1: PROJECTS ================= */}
-        {activeTab === 'projects' && (
-          <div>
-            {/* Project Form Card */}
-            <div className="nb-card" ref={formRef}>
-              <div className="nb-card-header">
+            <form onSubmit={handleExpSubmit} className="space-y-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <h2 className="nb-card-title">
-                    {editingId ? `[EDITING PROJECT #${editingId}]` : '[ADD NEW PROJECT]'}
-                  </h2>
-                  <p className="mono-micro" style={{ color: 'rgba(250, 248, 245, 0.5)', marginTop: '4px' }}>
-                    {editingId
-                      ? 'Modify project details. Updates immediately synchronize with the Work section.'
-                      : 'Publish a new project. Visitors will be able to see it in the Work section and open its link.'}
-                  </p>
+                  <label className="admin-label">Company / Workplace *</label>
+                  <input
+                    type="text"
+                    className="admin-input"
+                    value={expForm.company}
+                    onChange={(e) => setExpForm({ ...expForm, company: e.target.value })}
+                    placeholder="e.g. Acme Corp"
+                    required
+                  />
                 </div>
-                {editingId && (
-                  <button type="button" onClick={handleCancelEdit} className="nb-btn nb-btn-outline nb-btn-sm">
-                    ✕ CANCEL EDIT
+
+                <div>
+                  <label className="admin-label">Role / Job Title *</label>
+                  <input
+                    type="text"
+                    className="admin-input"
+                    value={expForm.role}
+                    onChange={(e) => setExpForm({ ...expForm, role: e.target.value })}
+                    placeholder="e.g. Systems Engineer"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="admin-label">Employment / Job Type</label>
+                  <select
+                    className="admin-input"
+                    value={expForm.job_type || 'Full-time'}
+                    onChange={(e) => setExpForm({ ...expForm, job_type: e.target.value })}
+                  >
+                    <option value="Full-time">Full-time</option>
+                    <option value="Part-time">Part-time</option>
+                    <option value="Internship">Internship</option>
+                    <option value="Apprenticeship">Apprenticeship</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="admin-label">Location</label>
+                  <input
+                    type="text"
+                    className="admin-input"
+                    value={expForm.location}
+                    onChange={(e) => setExpForm({ ...expForm, location: e.target.value })}
+                    placeholder="e.g. Batam, Indonesia • Remote"
+                  />
+                </div>
+
+                <div>
+                  <label className="admin-label">Period / Duration</label>
+                  <input
+                    type="text"
+                    className="admin-input"
+                    value={expForm.period}
+                    onChange={(e) => setExpForm({ ...expForm, period: e.target.value })}
+                    placeholder="e.g. Jan 2024 — Present"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
+                <div className="sm:col-span-2">
+                  <label className="admin-label">Company / Job Logo URL</label>
+                  <input
+                    type="text"
+                    className="admin-input"
+                    value={expForm.logo}
+                    onChange={(e) => setExpForm({ ...expForm, logo: e.target.value })}
+                    placeholder="https://... or /uploads/logo.png"
+                  />
+                </div>
+                <div className="flex gap-2 items-center">
+                  <button
+                    type="button"
+                    onClick={() => triggerUpload((url) => setExpForm((prev) => ({ ...prev, logo: url })))}
+                    className="link-badge w-full justify-center !py-2 font-mono text-xs"
+                    disabled={uploading}
+                  >
+                    {uploading ? 'Uploading…' : '↑ Upload Job Logo'}
+                  </button>
+                  {expForm.logo && (
+                    <img
+                      src={expForm.logo}
+                      alt="Logo preview"
+                      referrerPolicy="no-referrer"
+                      className="w-8 h-8 rounded-sm object-contain border border-[#c8c6be] bg-white p-0.5 shrink-0"
+                    />
+                  )}
+                </div>
+              </div>
+
+              <div>
+                <label className="admin-label">Description / Responsibilities</label>
+                <textarea
+                  className="admin-input"
+                  rows={3}
+                  value={expForm.description}
+                  onChange={(e) => setExpForm({ ...expForm, description: e.target.value })}
+                  placeholder="Key accomplishments and architecture details..."
+                />
+              </div>
+
+              <div className="flex flex-wrap items-center gap-4 pt-1">
+                <label className="flex items-center gap-1.5 text-xs font-mono cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={expForm.star}
+                    onChange={(e) => setExpForm({ ...expForm, star: e.target.checked })}
+                  />
+                  <span>Featured (Star ★)</span>
+                </label>
+
+                <label className="flex items-center gap-1.5 text-xs font-mono cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={expForm.published}
+                    onChange={(e) => setExpForm({ ...expForm, published: e.target.checked })}
+                  />
+                  <span>Published on Home</span>
+                </label>
+              </div>
+
+              <div className="flex items-center gap-2 pt-2">
+                <button type="submit" className="admin-btn-primary">
+                  {editingExpId ? 'UPDATE EXPERIENCE →' : 'ADD EXPERIENCE →'}
+                </button>
+                {editingExpId && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingExpId(null)
+                      setExpForm({
+                        company: '',
+                        role: '',
+                        location: '',
+                        period: '',
+                        description: '',
+                        initial: '',
+                        initial_bg: '#1b1c18',
+                        star: false,
+                        order_index: 0,
+                        published: true
+                      })
+                    }}
+                    className="link-badge font-mono text-xs !py-1.5"
+                  >
+                    Cancel Edit
                   </button>
                 )}
               </div>
+            </form>
+          </div>
 
-              <form onSubmit={handleProjectSubmit}>
-                <div className="nb-form-grid">
-                  {/* Title */}
-                  <div className="nb-form-group" style={{ gridColumn: 'span 2' }}>
-                    <label className="nb-label">
-                      <span>1. PROJECT TITLE</span>
-                      <span style={{ color: '#7A0E22' }}>*REQUIRED</span>
-                    </label>
-                    <input
-                      type="text"
-                      className="nb-input"
-                      value={projForm.title}
-                      onChange={(e) => setProjForm({ ...projForm, title: e.target.value })}
-                      placeholder="e.g. Market & Trading Telemetry Dashboard"
-                      required
-                    />
-                  </div>
+          {/* List of Experiences */}
+          <div className="cmd-box">
+            <div className="cmd-header">
+              experiences.list ({experiencesList.length})
+            </div>
 
-                  {/* Category / Label */}
-                  <div className="nb-form-group">
-                    <label className="nb-label">
-                      <span>2. LABEL / TYPE (CATEGORY)</span>
-                      <span>CHIP ON CARD</span>
-                    </label>
-                    <input
-                      type="text"
-                      className="nb-input"
-                      value={projForm.category}
-                      onChange={(e) => setProjForm({ ...projForm, category: e.target.value })}
-                      placeholder="e.g. OPERATIONS & ASYNC HQ"
-                    />
-                    <div className="nb-chip-suggestions">
-                      {CATEGORY_SUGGESTIONS.map((cat) => (
-                        <button
-                          key={cat}
-                          type="button"
-                          className="nb-chip"
-                          onClick={() => setProjForm({ ...projForm, category: cat })}
-                        >
-                          +{cat}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Project URL / Link */}
-                  <div className="nb-form-group">
-                    <label className="nb-label">
-                      <span>5. PROJECT LINK / URL</span>
-                      <span style={{ color: '#4ade80' }}>OPENS IN WORK SECTION</span>
-                    </label>
-                    <input
-                      type="text"
-                      className="nb-input"
-                      value={projForm.url}
-                      onChange={(e) => setProjForm({ ...projForm, url: e.target.value })}
-                      placeholder="https://my-app.com or https://github.com/..."
-                    />
-                    <span className="mono-micro" style={{ fontSize: '9px', color: 'rgba(250, 248, 245, 0.4)', marginTop: '6px' }}>
-                      Visitors click &ldquo;OPEN PROJECT ↗&rdquo; on the card to visit this exact link.
-                    </span>
-                  </div>
-
-                  {/* Image Upload & Path */}
-                  <div className="nb-form-group" style={{ gridColumn: 'span 2' }}>
-                    <label className="nb-label">
-                      <span>3. PROJECT IMAGE</span>
-                      <span>UPLOAD FILE OR ENTER URL</span>
-                    </label>
-
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', alignItems: 'center' }}>
-                      {/* Upload Box */}
-                      <div>
-                        <input
-                          type="file"
-                          accept="image/*"
-                          ref={fileInputRef}
-                          style={{ display: 'none' }}
-                          onChange={(e) => handleProjectImageUpload(e.target.files?.[0])}
+            {experiencesList.length === 0 ? (
+              <div className="text-xs font-mono text-terminal-prompt py-4 text-center">
+                // No experiences in database. Section is currently hidden on home page.
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {experiencesList.map((exp) => (
+                  <div key={exp.id} className="item-card flex items-start justify-between gap-3">
+                    <div className="flex items-start gap-2.5">
+                      {exp.logo || (exp.initial_bg && (exp.initial_bg.startsWith('http') || exp.initial_bg.startsWith('/uploads'))) ? (
+                        <img
+                          src={exp.logo || exp.initial_bg}
+                          alt={exp.company}
+                          referrerPolicy="no-referrer"
+                          className="w-7 h-7 rounded-sm object-contain bg-white border border-[#c8c6be] shrink-0 mt-0.5 p-0.5"
+                          onError={(e) => { e.currentTarget.style.display = 'none'; }}
                         />
+                      ) : (
                         <div
-                          className="nb-upload-zone"
-                          onClick={() => fileInputRef.current && fileInputRef.current.click()}
+                          className="w-7 h-7 rounded-sm text-white flex items-center justify-center font-mono font-bold text-xs shrink-0 mt-0.5"
+                          style={{ backgroundColor: exp.initial_bg || '#1b1c18' }}
                         >
-                          <div
-                            style={{
-                              width: '42px',
-                              height: '42px',
-                              border: '1px solid rgba(250, 248, 245, 0.2)',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              background: 'rgba(250, 248, 245, 0.05)',
-                              fontFamily: 'var(--font-mono)'
-                            }}
-                          >
-                            ↑
-                          </div>
-                          <div>
-                            <div className="mono-micro" style={{ fontWeight: 600 }}>
-                              {uploadingImage ? 'UPLOADING IMAGE…' : 'CLICK TO UPLOAD IMAGE'}
-                            </div>
-                            <div className="mono-micro" style={{ fontSize: '9px', color: 'rgba(250, 248, 245, 0.5)' }}>
-                              PNG, JPG, WEBP, AVIF (UP TO 5MB)
-                            </div>
-                          </div>
+                          {exp.initial || exp.company[0]}
+                        </div>
+                      )}
+                      <div>
+                        <div className="font-semibold text-xs text-on-surface">
+                          {exp.company} {exp.star && <span className="text-amber-500">★</span>}
+                        </div>
+                        <div className="text-[11.5px] text-[#2a2b27] flex items-center gap-1.5 flex-wrap mt-0.5">
+                          <span>{exp.role}</span>
+                          <span className="text-[9.5px] font-mono px-1 py-0.2 bg-[#f0eee8] border border-[#a8a69e] rounded text-[#2b2b28] uppercase">
+                            {exp.job_type || (Array.isArray(exp.badges) && typeof exp.badges[0] === 'string' ? exp.badges[0] : 'Full-time')}
+                          </span>
+                          <span className="text-on-surface-variant font-mono">• {exp.period}</span>
+                        </div>
+                        <div className="text-[11px] text-on-surface-variant line-clamp-1 mt-0.5">
+                          {exp.description}
                         </div>
                       </div>
-
-                      {/* Manual URL Input & Preview */}
-                      <div>
-                        <input
-                          type="text"
-                          className="nb-input"
-                          value={projForm.image}
-                          onChange={(e) => setProjForm({ ...projForm, image: e.target.value })}
-                          placeholder="/uploads/doc-1.avif or https://..."
-                        />
-                        {projForm.image && (
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '8px' }}>
-                            <img src={projForm.image} alt="Preview" className="nb-upload-preview" />
-                            <div className="mono-micro" style={{ fontSize: '10px' }}>
-                              <span>PREVIEW LOADED</span>
-                              <button
-                                type="button"
-                                onClick={() => setProjForm({ ...projForm, image: '' })}
-                                className="nb-btn nb-btn-danger nb-btn-sm"
-                                style={{ display: 'block', marginTop: '4px' }}
-                              >
-                                REMOVE
-                              </button>
-                            </div>
-                          </div>
-                        )}
-                      </div>
                     </div>
-                  </div>
 
-                  {/* Description / Bio */}
-                  <div className="nb-form-group" style={{ gridColumn: 'span 2' }}>
-                    <label className="nb-label">
-                      <span>4. SUMMARY / BIO</span>
-                      <span>SHOWN ON WORK PREVIEW CARD</span>
-                    </label>
-                    <textarea
-                      className="nb-textarea"
-                      value={projForm.description}
-                      onChange={(e) => setProjForm({ ...projForm, description: e.target.value })}
-                      placeholder="Operational headquarters and digital framework built for dependable everyday team execution..."
-                    />
-                  </div>
-
-                  {/* ================= FULL CASE STUDY SECTION ================= */}
-                  <div className="nb-form-group" style={{ gridColumn: 'span 2', marginTop: '16px', paddingTop: '20px', borderTop: '1px solid rgba(250, 248, 245, 0.15)' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span className="nb-label" style={{ color: '#7A0E22', fontWeight: 700, fontSize: '11px' }}>
-                        ★ FULL CASE STUDY SPECIFICATION (OPENED ON &ldquo;READ FULL CASE STUDY&rdquo;)
-                      </span>
-                      <span className="mono-micro" style={{ fontSize: '10px', color: 'rgba(250, 248, 245, 0.5)' }}>
-                        SYNCHRONIZES WITH LIVE IN-PAGE CASE STUDY
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Client & Engagement */}
-                  <div className="nb-form-group">
-                    <label className="nb-label">
-                      <span>A. CLIENT</span>
-                      <span>NAME / BRAND</span>
-                    </label>
-                    <input
-                      type="text"
-                      className="nb-input"
-                      value={projForm.client || ''}
-                      onChange={(e) => setProjForm({ ...projForm, client: e.target.value })}
-                      placeholder="e.g. KD Beauty Studio"
-                    />
-                  </div>
-
-                  <div className="nb-form-group">
-                    <label className="nb-label">
-                      <span>B. ENGAGEMENT</span>
-                      <span>ROLE / SCOPE</span>
-                    </label>
-                    <input
-                      type="text"
-                      className="nb-input"
-                      value={projForm.engagement || ''}
-                      onChange={(e) => setProjForm({ ...projForm, engagement: e.target.value })}
-                      placeholder="e.g. Full-Stack Web Development, UI/UX Architecture"
-                    />
-                  </div>
-
-                  {/* Brief */}
-                  <div className="nb-form-group" style={{ gridColumn: 'span 2' }}>
-                    <label className="nb-label">
-                      <span>C. BRIEF</span>
-                      <span>CORE OBJECTIVE &amp; PROJECT GOAL</span>
-                    </label>
-                    <textarea
-                      className="nb-textarea"
-                      style={{ minHeight: '80px' }}
-                      value={projForm.brief || ''}
-                      onChange={(e) => setProjForm({ ...projForm, brief: e.target.value })}
-                      placeholder="Explain the client problem, target audience, and primary deliverables..."
-                    />
-                  </div>
-
-                  {/* Hero Documentation: Video or Picture Full on Monitor */}
-                  <div className="nb-form-group" style={{ gridColumn: 'span 2' }}>
-                    <label className="nb-label">
-                      <span>D. DOCUMENTATION (FULL MONITOR DISPLAY)</span>
-                      <span>VIDEO (.MP4) OR HIGH-RES PICTURE URL</span>
-                    </label>
-                    <input
-                      type="file"
-                      accept="image/*,video/*"
-                      ref={docMediaInputRef}
-                      style={{ display: 'none' }}
-                      onChange={(e) => handleDocumentationUpload(e.target.files?.[0])}
-                    />
-                    <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-                      <input
-                        type="text"
-                        className="nb-input"
-                        style={{ flex: 1 }}
-                        value={projForm.documentation || ''}
-                        onChange={(e) => setProjForm({ ...projForm, documentation: e.target.value })}
-                        placeholder="/uploads/my-doc.jpg or video mp4 url..."
-                      />
+                    <div className="flex items-center gap-1.5 shrink-0">
                       <button
-                        type="button"
-                        onClick={() => docMediaInputRef.current && docMediaInputRef.current.click()}
-                        className="nb-btn nb-btn-outline nb-btn-sm"
-                        style={{ whiteSpace: 'nowrap' }}
+                        onClick={() => handleExpEdit(exp)}
+                        className="link-badge font-mono text-[10px]"
                       >
-                        {uploadingDocMedia ? 'UPLOADING…' : '↑ UPLOAD MEDIA'}
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => handleExpDelete(exp.id)}
+                        className="admin-btn-danger"
+                      >
+                        Delete ✕
                       </button>
                     </div>
                   </div>
-
-                  {/* Challenge */}
-                  <div className="nb-form-group">
-                    <label className="nb-label">
-                      <span>E. CHALLENGE</span>
-                      <span>OBSTACLES &amp; CONSTRAINTS</span>
-                    </label>
-                    <textarea
-                      className="nb-textarea"
-                      style={{ minHeight: '110px' }}
-                      value={projForm.challenge || ''}
-                      onChange={(e) => setProjForm({ ...projForm, challenge: e.target.value })}
-                      placeholder="The operational constraints, technical hurdles, and legacy limitations..."
-                    />
-                  </div>
-
-                  {/* Approach */}
-                  <div className="nb-form-group">
-                    <label className="nb-label">
-                      <span>F. APPROACH</span>
-                      <span>STRATEGY &amp; EXECUTION</span>
-                    </label>
-                    <textarea
-                      className="nb-textarea"
-                      style={{ minHeight: '110px' }}
-                      value={projForm.approach || ''}
-                      onChange={(e) => setProjForm({ ...projForm, approach: e.target.value })}
-                      placeholder="The methodology, architecture decisions, tools, and execution workflow..."
-                    />
-                  </div>
-
-                  {/* Picture Documentation: 1 Spotlight + 8-Grid */}
-                  <div className="nb-form-group" style={{ gridColumn: 'span 2' }}>
-                    <label className="nb-label">
-                      <span>G. PICTURE DOCUMENTATION (1 SPOTLIGHT + 8-GRID)</span>
-                      <span>ONE IMAGE URL PER LINE (FIRST IS SPOTLIGHT, NEXT ARE UP TO 8 GRID)</span>
-                    </label>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      multiple
-                      ref={multiDocsInputRef}
-                      style={{ display: 'none' }}
-                      onChange={(e) => handleMultiDocsUpload(e.target.files)}
-                    />
-                    <textarea
-                      className="nb-textarea"
-                      style={{ minHeight: '100px', fontFamily: 'var(--font-mono)', fontSize: '12px' }}
-                      value={projForm.picture_docs || ''}
-                      onChange={(e) => setProjForm({ ...projForm, picture_docs: e.target.value })}
-                      placeholder="/uploads/spotlight.jpg&#10;/uploads/grid-1.jpg&#10;/uploads/grid-2.jpg"
-                    />
-                    <div style={{ display: 'flex', gap: '10px', alignItems: 'center', marginTop: '8px' }}>
-                      <button
-                        type="button"
-                        onClick={() => multiDocsInputRef.current && multiDocsInputRef.current.click()}
-                        className="nb-btn nb-btn-outline nb-btn-sm"
-                      >
-                        {uploadingMultiDocs ? 'UPLOADING PICTURES…' : '↑ BATCH UPLOAD PICTURES'}
-                      </button>
-                      <span className="mono-micro" style={{ fontSize: '10px', color: 'rgba(250, 248, 245, 0.45)' }}>
-                        Select multiple images to append. If left empty, 8 default system doc frames are rendered.
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Quote */}
-                  <div className="nb-form-group" style={{ gridColumn: 'span 2' }}>
-                    <label className="nb-label">
-                      <span>H. DIRECTIVE QUOTE</span>
-                      <span>CLIENT FEEDBACK / TESTIMONIAL</span>
-                    </label>
-                    <textarea
-                      className="nb-textarea"
-                      style={{ minHeight: '70px' }}
-                      value={projForm.quote || ''}
-                      onChange={(e) => setProjForm({ ...projForm, quote: e.target.value })}
-                      placeholder="e.g. Khairi brought unbelievable precision, velocity, and discipline to our digital infrastructure."
-                    />
-                  </div>
-
-                  {/* Outcome */}
-                  <div className="nb-form-group" style={{ gridColumn: 'span 2' }}>
-                    <label className="nb-label">
-                      <span>I. THE OUTCOME</span>
-                      <span>FINAL RESULTS &amp; IMPACT (ACCOMPANIES &ldquo;VISIT WEBSITE&rdquo;)</span>
-                    </label>
-                    <textarea
-                      className="nb-textarea"
-                      style={{ minHeight: '80px' }}
-                      value={projForm.outcome || ''}
-                      onChange={(e) => setProjForm({ ...projForm, outcome: e.target.value })}
-                      placeholder="e.g. Launched with zero downtime, resulting in a 40% increase in direct client bookings."
-                    />
-                  </div>
-
-                  {/* Progress & Published Status */}
-                  <div className="nb-form-group">
-                    <label className="nb-label">
-                      <span>COMPLETION PROGRESS</span>
-                      <span>{(Number(projForm.progress) || 3) * 20}% DONE</span>
-                    </label>
-                    <select
-                      className="nb-select"
-                      value={projForm.progress}
-                      onChange={(e) => setProjForm({ ...projForm, progress: e.target.value })}
-                    >
-                      <option value="1">1/5 — 20% (PLANNING &amp; RESEARCH)</option>
-                      <option value="2">2/5 — 40% (PROTOTYPING)</option>
-                      <option value="3">3/5 — 60% (IN ACTIVE DEVELOPMENT)</option>
-                      <option value="4">4/5 — 80% (FINAL TESTING)</option>
-                      <option value="5">5/5 — 100% (PRODUCTION READY)</option>
-                    </select>
-                  </div>
-
-                  <div className="nb-form-group" style={{ justifyContent: 'center' }}>
-                    <label className="nb-label">PUBLICATION STATUS</label>
-                    <div style={{ display: 'flex', gap: '16px', alignItems: 'center', marginTop: '6px' }}>
-                      <label style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', cursor: 'pointer', margin: 0 }}>
-                        <input
-                          type="checkbox"
-                          checked={projForm.published}
-                          onChange={(e) => setProjForm({ ...projForm, published: e.target.checked })}
-                          style={{ accentColor: '#7A0E22', width: '16px', height: '16px' }}
-                        />
-                        <span className="mono-micro" style={{ fontSize: '11px' }}>
-                          PUBLISH TO LIVE WEBSITE WORK SECTION
-                        </span>
-                      </label>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Submit Actions */}
-                <div style={{ display: 'flex', gap: '12px', marginTop: '28px', paddingTop: '20px', borderTop: '1px solid rgba(250, 248, 245, 0.14)' }}>
-                  <button type="submit" className="nb-btn nb-btn-primary">
-                    {editingId ? 'SAVE PROJECT CHANGES ✓' : 'PUBLISH PROJECT TO WEBSITE →'}
-                  </button>
-                  {editingId && (
-                    <button type="button" onClick={handleCancelEdit} className="nb-btn nb-btn-outline">
-                      CANCEL
-                    </button>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => setProjForm(emptyProject)}
-                    className="nb-btn nb-btn-outline"
-                    style={{ marginLeft: 'auto' }}
-                  >
-                    RESET FORM
-                  </button>
-                </div>
-              </form>
-            </div>
-
-            {/* Existing Projects List */}
-            <div className="nb-card">
-              <div className="nb-card-header">
-                <div>
-                  <h2 className="nb-card-title">[REGISTERED PROJECTS // ARCHIVE]</h2>
-                  <p className="mono-micro" style={{ color: 'rgba(250, 248, 245, 0.5)', marginTop: '4px' }}>
-                    Manage, edit, or remove published projects. Click &ldquo;EDIT&rdquo; to load into form.
-                  </p>
-                </div>
-                <span className="mono-micro" style={{ fontSize: '11px', color: '#FAF8F5' }}>
-                  {projects.length} TOTAL
-                </span>
+                ))}
               </div>
-
-              {projects.length === 0 ? (
-                <div style={{ padding: '36px 0', textAlign: 'center', color: 'rgba(250, 248, 245, 0.4)' }}>
-                  <p className="mono-micro">[NO PROJECTS PUBLISHED YET]</p>
-                  <p style={{ marginTop: '8px', fontSize: '13px' }}>
-                    Use the form above to add your first project.
-                  </p>
-                </div>
-              ) : (
-                <div className="nb-table-wrap">
-                  <table className="nb-table">
-                    <thead>
-                      <tr>
-                        <th style={{ width: '80px' }}>PREVIEW</th>
-                        <th>TITLE &amp; CATEGORY</th>
-                        <th>LINK / URL</th>
-                        <th>PROGRESS</th>
-                        <th>STATUS</th>
-                        <th style={{ textAlign: 'right' }}>ACTIONS</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {projects.map((p, idx) => (
-                        <tr key={p.id}>
-                          <td>
-                            {p.image ? (
-                              <img src={p.image} alt={p.title} className="nb-table-thumb" />
-                            ) : (
-                              <div className="nb-table-fallback">
-                                <span>{String(idx + 1).padStart(2, '0')}</span>
-                              </div>
-                            )}
-                          </td>
-                          <td>
-                            <div style={{ fontWeight: 600, fontSize: '14px', marginBottom: '4px' }}>
-                              {p.title}
-                            </div>
-                            <span className="nb-admin-badge" style={{ fontSize: '9px', padding: '2px 6px' }}>
-                              {p.category || 'GENERAL'}
-                            </span>
-                          </td>
-                          <td>
-                            {p.url ? (
-                              <a
-                                href={p.url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="mono-micro"
-                                style={{ color: '#FAF8F5', textDecoration: 'underline', fontSize: '11px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
-                              >
-                                <span>{p.url.replace(/^https?:\/\//, '').slice(0, 28)}…</span>
-                                <span>↗</span>
-                              </a>
-                            ) : (
-                              <span className="mono-micro" style={{ color: 'rgba(250, 248, 245, 0.35)', fontSize: '10px' }}>
-                                [NO EXTERNAL URL]
-                              </span>
-                            )}
-                          </td>
-                          <td>
-                            <div className="mono-micro" style={{ fontSize: '11px' }}>
-                              {(p.progress || 3) * 20}% ({p.progress || 3}/5)
-                            </div>
-                          </td>
-                          <td>
-                            <span className={`nb-status-pill ${p.published ? 'published' : 'draft'}`}>
-                              {p.published ? '● LIVE' : '○ DRAFT'}
-                            </span>
-                          </td>
-                          <td style={{ textAlign: 'right' }}>
-                            <div style={{ display: 'inline-flex', gap: '8px' }}>
-                              <a
-                                href={`/#${p.id}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="nb-btn nb-btn-outline nb-btn-sm"
-                                title="View on Live Website"
-                                style={{ textDecoration: 'none' }}
-                              >
-                                LIVE VIEW ↗
-                              </a>
-                              <button
-                                type="button"
-                                onClick={() => startEditing(p)}
-                                className="nb-btn nb-btn-outline nb-btn-sm"
-                                title="Edit this project"
-                              >
-                                EDIT ✎
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleTogglePublish(p)}
-                                className="nb-btn nb-btn-outline nb-btn-sm"
-                                title={p.published ? 'Unpublish' : 'Publish'}
-                              >
-                                {p.published ? 'UNPUBLISH' : 'PUBLISH'}
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleDeleteProject(p)}
-                                className="nb-btn nb-btn-danger nb-btn-sm"
-                                title="Delete this project"
-                              >
-                                DELETE ✕
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* ================= TAB 2: PROFILE & BIO ================= */}
-        {activeTab === 'profile' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
-            <div className="nb-card">
-            <div className="nb-card-header">
-              <div>
-                <h2 className="nb-card-title">[MY IDENTITY &amp; BIO PROFILE]</h2>
-                <p className="mono-micro" style={{ color: 'rgba(250, 248, 245, 0.5)', marginTop: '4px' }}>
-                  Top hero blurb, intro, who am I, school, and contact details.
-                </p>
-              </div>
-            </div>
-
-            <form onSubmit={handleSaveProfile}>
-              <div className="nb-form-grid">
-                <div className="nb-form-group" style={{ gridColumn: 'span 2' }}>
-                  <label className="nb-label">HERO HOOK BLURB (DISPLAYED AT TOP)</label>
-                  <textarea
-                    className="nb-textarea"
-                    style={{ minHeight: '70px' }}
-                    value={profile.hero || ''}
-                    onChange={(e) => setProfile({ ...profile, hero: e.target.value })}
-                    placeholder="e.g. Hungry student, Formula 1 and Finance enthusiast, Memecoins and Stocks traders."
-                  />
-                </div>
-
-                <div className="nb-form-group">
-                  <label className="nb-label">FULL NAME</label>
-                  <input
-                    type="text"
-                    className="nb-input"
-                    value={profile.name || ''}
-                    onChange={(e) => setProfile({ ...profile, name: e.target.value })}
-                    placeholder="Khairi Nugroho"
-                  />
-                </div>
-
-                <div className="nb-form-group">
-                  <label className="nb-label">CONTACT EMAIL</label>
-                  <input
-                    type="email"
-                    className="nb-input"
-                    value={profile.email || ''}
-                    onChange={(e) => setProfile({ ...profile, email: e.target.value })}
-                    placeholder="khairizakiyn@gmail.com"
-                  />
-                </div>
-
-                <div className="nb-form-group" style={{ gridColumn: 'span 2' }}>
-                  <label className="nb-label">WHO AM I (CORE BIO)</label>
-                  <textarea
-                    className="nb-textarea"
-                    value={profile.who_am_i || ''}
-                    onChange={(e) => setProfile({ ...profile, who_am_i: e.target.value })}
-                    placeholder="One paragraph explaining your background, focus, and drive..."
-                  />
-                </div>
-
-                <div className="nb-form-group" style={{ gridColumn: 'span 2' }}>
-                  <label className="nb-label">WHAT I DID (EXPERIENCE &amp; CURRENT FOCUS)</label>
-                  <textarea
-                    className="nb-textarea"
-                    value={profile.what_i_did || ''}
-                    onChange={(e) => setProfile({ ...profile, what_i_did: e.target.value })}
-                    placeholder="What you are currently building or learning..."
-                  />
-                </div>
-
-                <div className="nb-form-group">
-                  <label className="nb-label">SCHOOL / EDUCATION</label>
-                  <input
-                    type="text"
-                    className="nb-input"
-                    value={profile.school || ''}
-                    onChange={(e) => setProfile({ ...profile, school: e.target.value })}
-                    placeholder="Studying at Vocational School in Batam"
-                  />
-                </div>
-
-                {/* Profile Photo */}
-                <div className="nb-form-group">
-                  <label className="nb-label">PORTRAIT / AVATAR</label>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    ref={photoInputRef}
-                    style={{ display: 'none' }}
-                    onChange={(e) => handleProfilePhotoUpload(e.target.files?.[0])}
-                  />
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-                    <button
-                      type="button"
-                      onClick={() => photoInputRef.current && photoInputRef.current.click()}
-                      className="nb-btn nb-btn-outline nb-btn-sm"
-                    >
-                      {uploadingPhoto ? 'UPLOADING…' : 'UPLOAD PHOTO ↑'}
-                    </button>
-                    {profile.photo && (
-                      <img
-                        src={profile.photo}
-                        alt="Profile avatar"
-                        style={{ width: '44px', height: '44px', objectFit: 'cover', border: '1px solid rgba(250, 248, 245, 0.2)' }}
-                      />
-                    )}
-                  </div>
-                </div>
-
-                {/* Social Links */}
-                <div className="nb-form-group">
-                  <label className="nb-label">INSTAGRAM URL</label>
-                  <input
-                    type="text"
-                    className="nb-input"
-                    value={profile.instagram_url ?? profile.x_url ?? ''}
-                    onChange={(e) =>
-                      setProfile({
-                        ...profile,
-                        instagram_url: e.target.value,
-                        x_url: e.target.value
-                      })
-                    }
-                    placeholder="https://instagram.com/..."
-                  />
-                </div>
-
-                <div className="nb-form-group">
-                  <label className="nb-label">GITHUB URL</label>
-                  <input
-                    type="text"
-                    className="nb-input"
-                    value={profile.github_url || ''}
-                    onChange={(e) => setProfile({ ...profile, github_url: e.target.value })}
-                    placeholder="https://github.com/..."
-                  />
-                </div>
-
-                <div className="nb-form-group" style={{ gridColumn: 'span 2' }}>
-                  <label className="nb-label">LINKEDIN URL</label>
-                  <input
-                    type="text"
-                    className="nb-input"
-                    value={profile.linkedin_url || ''}
-                    onChange={(e) => setProfile({ ...profile, linkedin_url: e.target.value })}
-                    placeholder="https://linkedin.com/in/..."
-                  />
-                </div>
-              </div>
-
-              <div style={{ marginTop: '28px', paddingTop: '20px', borderTop: '1px solid rgba(250, 248, 245, 0.14)' }}>
-                <button type="submit" className="nb-btn nb-btn-primary">
-                  SAVE PROFILE DATA ✓
-                </button>
-              </div>
-            </form>
-          </div>
-
-          {/* ================= ABOUT SECTION BIO CARD ================= */}
-          <div className="nb-card">
-            <div className="nb-card-header">
-              <div>
-                <div className="mono-micro" style={{ color: 'var(--color-burgundy-accent, #cf352e)', letterSpacing: '0.15em', marginBottom: '4px' }}>
-                  ABOUT SECTION // SUPABASE SYNC (public.bio)
-                </div>
-                <h2 className="nb-card-title">[ABOUT SECTION: BIO CONTENT]</h2>
-                <p className="mono-micro" style={{ color: 'rgba(250, 248, 245, 0.5)', marginTop: '4px' }}>
-                  Manage the live Subtitle and Bio Paragraphs rendered in the About Section on the homepage.
-                </p>
-              </div>
-            </div>
-
-            <form onSubmit={handleSaveBio}>
-              <div className="nb-form-grid">
-                <div className="nb-form-group" style={{ gridColumn: 'span 2' }}>
-                  <label className="nb-label">ABOUT BIO SUBTITLE</label>
-                  <input
-                    type="text"
-                    className="nb-input"
-                    value={bio.subtitle || ''}
-                    onChange={(e) => setBio({ ...bio, subtitle: e.target.value })}
-                    placeholder="e.g. 1 YEAR IN WEB DEVELOPMENT"
-                    required
-                  />
-                  <span className="mono-micro" style={{ color: 'rgba(250, 248, 245, 0.4)', marginTop: '4px', display: 'block' }}>
-                    Shown directly adjacent to &quot;BIO&quot; on the About grid.
-                  </span>
-                </div>
-
-                <div className="nb-form-group" style={{ gridColumn: 'span 2' }}>
-                  <label className="nb-label">BIO PARAGRAPH 1 (INTRO &amp; PASSIONS)</label>
-                  <textarea
-                    className="nb-textarea"
-                    style={{ minHeight: '90px' }}
-                    value={bio.paragraph_1 || ''}
-                    onChange={(e) => setBio({ ...bio, paragraph_1: e.target.value })}
-                    placeholder="First paragraph of your bio in the About Section..."
-                    required
-                  />
-                </div>
-
-                <div className="nb-form-group" style={{ gridColumn: 'span 2' }}>
-                  <label className="nb-label">BIO PARAGRAPH 2 (OPERATIONS &amp; WORK AVAILABILITY)</label>
-                  <textarea
-                    className="nb-textarea"
-                    style={{ minHeight: '90px' }}
-                    value={bio.paragraph_2 || ''}
-                    onChange={(e) => setBio({ ...bio, paragraph_2: e.target.value })}
-                    placeholder="Second paragraph of your bio in the About Section..."
-                  />
-                </div>
-              </div>
-
-              {/* Preview Box */}
-              <div style={{
-                marginTop: '20px',
-                padding: '16px 20px',
-                border: '1px solid rgba(250, 248, 245, 0.1)',
-                background: 'rgba(0, 0, 0, 0.25)',
-                borderRadius: '4px'
-              }}>
-                <div className="mono-micro" style={{ color: 'rgba(250, 248, 245, 0.5)', marginBottom: '8px', letterSpacing: '0.1em' }}>
-                  PREVIEW IN ABOUT SECTION:
-                </div>
-                <div style={{ fontSize: '11px', letterSpacing: '0.08em', fontWeight: 600, color: 'var(--color-burgundy-accent, #cf352e)', marginBottom: '8px' }}>
-                  {bio.subtitle || '1 YEAR IN WEB DEVELOPMENT'}
-                </div>
-                <div style={{ fontSize: '13px', lineHeight: '1.6', color: 'rgba(250, 248, 245, 0.85)' }}>
-                  {bio.paragraph_1 && <p style={{ margin: '0 0 8px 0' }}>{bio.paragraph_1}</p>}
-                  {bio.paragraph_2 && <p style={{ margin: '0' }}>{bio.paragraph_2}</p>}
-                </div>
-              </div>
-
-              <div style={{ marginTop: '24px', paddingTop: '18px', borderTop: '1px solid rgba(250, 248, 245, 0.14)' }}>
-                <button type="submit" className="nb-btn nb-btn-primary" disabled={savingBio}>
-                  {savingBio ? 'SAVING TO SUPABASE…' : 'SAVE ABOUT BIO ✓'}
-                </button>
-              </div>
-            </form>
+            )}
           </div>
         </div>
       )}
 
-        {/* ================= TAB 3: SERVICES & AWARDS ================= */}
-        {activeTab === 'services' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
-            {/* Supabase Notice Banner */}
-            <div
-              className="nb-card"
-              style={{
-                border: '1px solid rgba(122, 14, 34, 0.4)',
-                background: 'rgba(122, 14, 34, 0.08)',
-                padding: '20px 24px'
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <span className="nb-admin-badge" style={{ borderColor: 'var(--bg-burgundy)', color: '#FF6B81' }}>
-                  SUPABASE DB SYNC
-                </span>
-                <span className="mono-micro" style={{ color: 'rgba(250, 248, 245, 0.8)' }}>
-                  Tables: <code>public.services</code> &amp; <code>public.awards_and_courses</code>
-                </span>
-              </div>
-              <p className="mono-micro" style={{ color: 'rgba(250, 248, 245, 0.6)', marginTop: '8px', lineHeight: 1.6 }}>
-                Items saved here are stored in Supabase and displayed live in the About section. You can also input or manage rows manually in your Supabase Dashboard Table Editor. SQL file is located at <code>db/supabase-services-and-awards.sql</code>.
-              </p>
+      {/* ==================================================== */}
+      {/* TAB 3: PROJECTS                                      */}
+      {/* ==================================================== */}
+      {activeTab === 'projects' && (
+        <div className="space-y-6">
+          <div className="cmd-box" id="section-admin-projects">
+            <div className="cmd-header">
+              {editingProjId ? `projects // edit #${editingProjId}` : 'projects // add new project'}
+            </div>
+            <div className="text-xs text-on-surface-variant font-mono mb-3">
+              Showcase projects for visitors to explore. When list is empty, section is hidden on home page.
             </div>
 
-            {/* Grid of Two Columns: Services & Awards */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(420px, 1fr))', gap: '28px' }}>
-              {/* SECTION A: SERVICES */}
-              <div className="nb-card">
-                <div className="nb-card-header">
-                  <div>
-                    <h2 className="nb-card-title">
-                      {editingServiceId ? `[EDITING SERVICE #${editingServiceId}]` : '[ADD NEW SERVICE]'}
-                    </h2>
-                    <p className="mono-micro" style={{ color: 'rgba(250, 248, 245, 0.5)', marginTop: '4px' }}>
-                      Operational services shown in About section
-                    </p>
-                  </div>
-                  {editingServiceId && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setEditingServiceId(null)
-                        setServiceForm({ title: '', description: '', link: '', order_index: 0, published: true })
-                      }}
-                      className="nb-btn nb-btn-outline nb-btn-sm"
-                    >
-                      ✕ CANCEL
-                    </button>
-                  )}
-                </div>
-
-                <form onSubmit={handleSaveService}>
-                  <div className="nb-form-grid" style={{ gridTemplateColumns: '1fr' }}>
-                    <div className="nb-form-group">
-                      <label className="nb-label">SERVICE TITLE *</label>
-                      <input
-                        type="text"
-                        className="nb-input"
-                        value={serviceForm.title}
-                        onChange={(e) => setServiceForm({ ...serviceForm, title: e.target.value })}
-                        placeholder="e.g. Microsoft Excel"
-                        required
-                      />
-                    </div>
-
-                    <div className="nb-form-group">
-                      <label className="nb-label">DESCRIPTION (OPTIONAL)</label>
-                      <input
-                        type="text"
-                        className="nb-input"
-                        value={serviceForm.description}
-                        onChange={(e) => setServiceForm({ ...serviceForm, description: e.target.value })}
-                        placeholder="e.g. Financial modeling & spreadsheet architecture"
-                      />
-                    </div>
-
-                    <div className="nb-form-group">
-                      <label className="nb-label">EXTERNAL LINK / URL (OPTIONAL)</label>
-                      <input
-                        type="url"
-                        className="nb-input"
-                        value={serviceForm.link}
-                        onChange={(e) => setServiceForm({ ...serviceForm, link: e.target.value })}
-                        placeholder="https://..."
-                      />
-                    </div>
-
-                    <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
-                      <div className="nb-form-group" style={{ flex: 1 }}>
-                        <label className="nb-label">DISPLAY ORDER</label>
-                        <input
-                          type="number"
-                          className="nb-input"
-                          value={serviceForm.order_index}
-                          onChange={(e) => setServiceForm({ ...serviceForm, order_index: Number(e.target.value) })}
-                        />
-                      </div>
-                      <div className="nb-form-group" style={{ flex: 1, paddingTop: '22px' }}>
-                        <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontFamily: 'var(--font-mono)', fontSize: '13px' }}>
-                          <input
-                            type="checkbox"
-                            checked={serviceForm.published}
-                            onChange={(e) => setServiceForm({ ...serviceForm, published: e.target.checked })}
-                          />
-                          PUBLISHED (ACTIVE)
-                        </label>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div style={{ marginTop: '20px', paddingTop: '16px', borderTop: '1px solid rgba(250, 248, 245, 0.14)' }}>
-                    <button type="submit" className="nb-btn nb-btn-primary">
-                      {editingServiceId ? 'UPDATE SERVICE ✓' : 'ADD SERVICE +'}
-                    </button>
-                  </div>
-                </form>
-
-                {/* List of existing services */}
-                <div style={{ marginTop: '28px', borderTop: '1px solid rgba(250, 248, 245, 0.14)', paddingTop: '20px' }}>
-                  <h3 className="mono-micro" style={{ color: 'rgba(250, 248, 245, 0.7)', marginBottom: '14px', letterSpacing: '0.08em' }}>
-                    CURRENT SERVICES ({servicesList.length})
-                  </h3>
-                  {servicesList.length === 0 ? (
-                    <p className="mono-micro" style={{ color: 'rgba(250, 248, 245, 0.4)' }}>
-                      No custom services added yet. Default items are currently displayed.
-                    </p>
-                  ) : (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                      {servicesList.map((s, idx) => (
-                        <div
-                          key={s.id || idx}
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            padding: '12px 14px',
-                            background: 'rgba(250, 248, 245, 0.03)',
-                            border: '1px solid rgba(250, 248, 245, 0.08)'
-                          }}
-                        >
-                          <div>
-                            <span style={{ fontFamily: 'var(--font-mono)', fontSize: '11px', color: 'rgba(250, 248, 245, 0.4)', marginRight: '8px' }}>
-                              #{s.order_index ?? idx + 1}
-                            </span>
-                            <span style={{ fontWeight: 600, color: 'var(--bg-white)', fontSize: '14px' }}>
-                              {s.title}
-                            </span>
-                            {s.link && (
-                              <span className="mono-micro" style={{ marginLeft: '8px', color: '#68D391', fontSize: '11px' }}>
-                                [LINK]
-                              </span>
-                            )}
-                          </div>
-                          <div style={{ display: 'flex', gap: '8px' }}>
-                            <button
-                              type="button"
-                              onClick={() => handleEditService(s)}
-                              className="nb-btn nb-btn-outline nb-btn-sm"
-                              style={{ padding: '4px 10px', fontSize: '11px' }}
-                            >
-                              EDIT
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleDeleteService(s.id)}
-                              className="nb-btn nb-btn-danger nb-btn-sm"
-                              style={{ padding: '4px 10px', fontSize: '11px' }}
-                            >
-                              DEL
-                            </button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* SECTION B: AWARDS & COURSES */}
-              <div className="nb-card">
-                <div className="nb-card-header">
-                  <div>
-                    <h2 className="nb-card-title">
-                      {editingAwardId ? `[EDITING AWARD #${editingAwardId}]` : '[ADD NEW AWARD / COURSE]'}
-                    </h2>
-                    <p className="mono-micro" style={{ color: 'rgba(250, 248, 245, 0.5)', marginTop: '4px' }}>
-                      Courses, certs &amp; awards shown in About section
-                    </p>
-                  </div>
-                  {editingAwardId && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setEditingAwardId(null)
-                        setAwardForm({ title: '', description: '', link: '', order_index: 0, published: true })
-                      }}
-                      className="nb-btn nb-btn-outline nb-btn-sm"
-                    >
-                      ✕ CANCEL
-                    </button>
-                  )}
-                </div>
-
-                <form onSubmit={handleSaveAward}>
-                  <div className="nb-form-grid" style={{ gridTemplateColumns: '1fr' }}>
-                    <div className="nb-form-group">
-                      <label className="nb-label">TITLE *</label>
-                      <input
-                        type="text"
-                        className="nb-input"
-                        value={awardForm.title}
-                        onChange={(e) => setAwardForm({ ...awardForm, title: e.target.value })}
-                        placeholder="e.g. Financial Markets & Macroeconomics"
-                        required
-                      />
-                    </div>
-
-                    <div className="nb-form-group">
-                      <label className="nb-label">DESCRIPTION (OPTIONAL)</label>
-                      <input
-                        type="text"
-                        className="nb-input"
-                        value={awardForm.description}
-                        onChange={(e) => setAwardForm({ ...awardForm, description: e.target.value })}
-                        placeholder="e.g. Macro indicators, monetary policy, and market analysis"
-                      />
-                    </div>
-
-                    <div className="nb-form-group">
-                      <label className="nb-label">CERTIFICATE / VERIFICATION LINK (OPTIONAL)</label>
-                      <input
-                        type="url"
-                        className="nb-input"
-                        value={awardForm.link}
-                        onChange={(e) => setAwardForm({ ...awardForm, link: e.target.value })}
-                        placeholder="https://..."
-                      />
-                    </div>
-
-                    <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
-                      <div className="nb-form-group" style={{ flex: 1 }}>
-                        <label className="nb-label">DISPLAY ORDER</label>
-                        <input
-                          type="number"
-                          className="nb-input"
-                          value={awardForm.order_index}
-                          onChange={(e) => setAwardForm({ ...awardForm, order_index: Number(e.target.value) })}
-                        />
-                      </div>
-                      <div className="nb-form-group" style={{ flex: 1, paddingTop: '22px' }}>
-                        <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontFamily: 'var(--font-mono)', fontSize: '13px' }}>
-                          <input
-                            type="checkbox"
-                            checked={awardForm.published}
-                            onChange={(e) => setAwardForm({ ...awardForm, published: e.target.checked })}
-                          />
-                          PUBLISHED (ACTIVE)
-                        </label>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div style={{ marginTop: '20px', paddingTop: '16px', borderTop: '1px solid rgba(250, 248, 245, 0.14)' }}>
-                    <button type="submit" className="nb-btn nb-btn-primary">
-                      {editingAwardId ? 'UPDATE AWARD ✓' : 'ADD AWARD / COURSE +'}
-                    </button>
-                  </div>
-                </form>
-
-                {/* List of existing awards */}
-                <div style={{ marginTop: '28px', borderTop: '1px solid rgba(250, 248, 245, 0.14)', paddingTop: '20px' }}>
-                  <h3 className="mono-micro" style={{ color: 'rgba(250, 248, 245, 0.7)', marginBottom: '14px', letterSpacing: '0.08em' }}>
-                    CURRENT AWARDS &amp; COURSES ({awardsList.length})
-                  </h3>
-                  {awardsList.length === 0 ? (
-                    <p className="mono-micro" style={{ color: 'rgba(250, 248, 245, 0.4)' }}>
-                      No custom awards added yet. Default items are currently displayed.
-                    </p>
-                  ) : (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                      {awardsList.map((a, idx) => (
-                        <div
-                          key={a.id || idx}
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            padding: '12px 14px',
-                            background: 'rgba(250, 248, 245, 0.03)',
-                            border: '1px solid rgba(250, 248, 245, 0.08)'
-                          }}
-                        >
-                          <div>
-                            <span style={{ fontFamily: 'var(--font-mono)', fontSize: '11px', color: 'rgba(250, 248, 245, 0.4)', marginRight: '8px' }}>
-                              #{a.order_index ?? idx + 1}
-                            </span>
-                            <span style={{ fontWeight: 600, color: 'var(--bg-white)', fontSize: '14px' }}>
-                              {a.title}
-                            </span>
-                            {a.link && (
-                              <span className="mono-micro" style={{ marginLeft: '8px', color: '#68D391', fontSize: '11px' }}>
-                                [LINK]
-                              </span>
-                            )}
-                          </div>
-                          <div style={{ display: 'flex', gap: '8px' }}>
-                            <button
-                              type="button"
-                              onClick={() => handleEditAward(a)}
-                              className="nb-btn nb-btn-outline nb-btn-sm"
-                              style={{ padding: '4px 10px', fontSize: '11px' }}
-                            >
-                              EDIT
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleDeleteAward(a.id)}
-                              className="nb-btn nb-btn-danger nb-btn-sm"
-                              style={{ padding: '4px 10px', fontSize: '11px' }}
-                            >
-                              DEL
-                            </button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ================= TAB 4: PICTURES & MEDIA ================= */}
-        {activeTab === 'pictures' && (
-          <div>
-            <div className="nb-card" style={{ marginBottom: '24px' }}>
-              <div className="nb-card-header">
+            <form onSubmit={handleProjSubmit} className="space-y-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <h2 className="nb-card-title">
-                    {editingPicId ? `[EDIT PICTURE #${editingPicId}]` : '[UPLOAD & REGISTER PICTURE]'}
-                  </h2>
-                  <p className="mono-micro" style={{ color: 'rgba(250, 248, 245, 0.5)', marginTop: '4px' }}>
-                    Uploaded pictures are automatically synced directly to Supabase Storage &amp; Database (<code>public.pictures</code>)
-                  </p>
-                </div>
-                <span className="nb-admin-badge" style={{ color: '#4ade80', borderColor: 'rgba(74, 222, 128, 0.4)' }}>
-                  SUPABASE AUTO-SYNC
-                </span>
-              </div>
-
-              <form onSubmit={handleSavePicture}>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '16px' }}>
-                  <div className="nb-form-group">
-                    <label className="nb-label">PICTURE TITLE *</label>
-                    <input
-                      type="text"
-                      className="nb-input"
-                      value={pictureForm.title}
-                      onChange={(e) => setPictureForm({ ...pictureForm, title: e.target.value })}
-                      placeholder="e.g. Profile Portrait, Project Showcase 1"
-                      required
-                    />
-                  </div>
-
-                  <div className="nb-form-group">
-                    <label className="nb-label">UNIQUE IDENTIFIER / SLUG *</label>
-                    <input
-                      type="text"
-                      className="nb-input"
-                      value={pictureForm.name}
-                      onChange={(e) => setPictureForm({ ...pictureForm, name: e.target.value })}
-                      placeholder="e.g. profile_photo, showcase_doc_1"
-                      required
-                    />
-                  </div>
-
-                  <div className="nb-form-group">
-                    <label className="nb-label">CATEGORY</label>
-                    <select
-                      className="nb-select"
-                      value={pictureForm.category}
-                      onChange={(e) => setPictureForm({ ...pictureForm, category: e.target.value })}
-                    >
-                      <option value="profile">Profile Photo</option>
-                      <option value="work">Featured Work</option>
-                      <option value="project">Project Showcase</option>
-                      <option value="gallery">Gallery / Media</option>
-                      <option value="credential">Credential / Cert</option>
-                    </select>
-                  </div>
-
-                  <div className="nb-form-group">
-                    <label className="nb-label">ORDER INDEX</label>
-                    <input
-                      type="number"
-                      className="nb-input"
-                      value={pictureForm.order_index}
-                      onChange={(e) => setPictureForm({ ...pictureForm, order_index: e.target.value })}
-                    />
-                  </div>
-                </div>
-
-                <div className="nb-form-group" style={{ marginTop: '16px' }}>
-                  <label className="nb-label">DIRECT IMAGE URL / SUPABASE STORAGE URL *</label>
-                  <input
-                    type="file"
-                    ref={picMediaInputRef}
-                    style={{ display: 'none' }}
-                    accept="image/*"
-                    onChange={(e) => handlePictureUpload(e.target.files?.[0])}
-                  />
-                  <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-                    <input
-                      type="text"
-                      className="nb-input"
-                      value={pictureForm.url}
-                      onChange={(e) => setPictureForm({ ...pictureForm, url: e.target.value })}
-                      placeholder="https://...supabase.co/storage/... or /uploads/..."
-                      required
-                    />
-                    <button
-                      type="button"
-                      onClick={() => picMediaInputRef.current && picMediaInputRef.current.click()}
-                      className="nb-btn nb-btn-outline nb-btn-sm"
-                      style={{ whiteSpace: 'nowrap' }}
-                    >
-                      {uploadingPicMedia ? 'UPLOADING TO SUPABASE...' : 'UPLOAD PICTURE'}
-                    </button>
-                  </div>
-                </div>
-
-                {pictureForm.url && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '14px', margin: '14px 0' }}>
-                    <img
-                      src={pictureForm.url}
-                      alt="Preview"
-                      className="nb-upload-preview"
-                      style={{ maxHeight: '70px', objectFit: 'cover', border: '1px solid rgba(250, 248, 245, 0.2)' }}
-                    />
-                    <span className="mono-micro" style={{ color: '#4ade80' }}>
-                      SUPABASE PREVIEW LOADED
-                    </span>
-                  </div>
-                )}
-
-                <div className="nb-form-group" style={{ marginTop: '16px' }}>
-                  <label className="nb-label">DESCRIPTION / METADATA</label>
+                  <label className="admin-label">Project Title *</label>
                   <input
                     type="text"
-                    className="nb-input"
-                    value={pictureForm.description || ''}
-                    onChange={(e) => setPictureForm({ ...pictureForm, description: e.target.value })}
-                    placeholder="Brief description or usage note..."
+                    className="admin-input"
+                    value={projForm.title}
+                    onChange={(e) => setProjForm({ ...projForm, title: e.target.value })}
+                    placeholder="e.g. Distributed Cache Engine"
+                    required
                   />
                 </div>
 
-                <div style={{ display: 'flex', gap: '12px', marginTop: '20px' }}>
-                  <button type="submit" className="nb-btn nb-btn-primary">
-                    {editingPicId ? 'UPDATE IN SUPABASE' : 'SAVE TO SUPABASE'}
+                <div>
+                  <label className="admin-label">Project Link (URL)</label>
+                  <input
+                    type="url"
+                    className="admin-input"
+                    value={projForm.url}
+                    onChange={(e) => setProjForm({ ...projForm, url: e.target.value })}
+                    placeholder="https://github.com/..."
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="admin-label">Description</label>
+                <textarea
+                  className="admin-input"
+                  rows={2}
+                  value={projForm.description}
+                  onChange={(e) => setProjForm({ ...projForm, description: e.target.value })}
+                  placeholder="Overview of the system, stack used, and key features..."
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
+                <div className="sm:col-span-2">
+                  <label className="admin-label">Cover Image URL</label>
+                  <input
+                    type="text"
+                    className="admin-input"
+                    value={projForm.image}
+                    onChange={(e) => setProjForm({ ...projForm, image: e.target.value })}
+                    placeholder="https://... or /uploads/img.png"
+                  />
+                </div>
+                <div className="flex gap-2 items-center">
+                  <button
+                    type="button"
+                    onClick={() => triggerUpload((url) => setProjForm((p) => ({ ...p, image: url })))}
+                    className="link-badge w-full justify-center !py-2 font-mono text-xs"
+                    disabled={uploading}
+                  >
+                    {uploading ? 'Uploading…' : '↑ Upload Project Image'}
                   </button>
-                  {editingPicId && (
-                    <button
-                      type="button"
-                      className="nb-btn nb-btn-secondary"
-                      onClick={() => {
-                        setEditingPicId(null)
-                        setPictureForm({
-                          name: '',
-                          title: '',
-                          category: 'profile',
-                          url: '',
-                          alt_text: '',
-                          description: '',
-                          order_index: 0,
-                          published: true
-                        })
-                      }}
-                    >
-                      CANCEL
-                    </button>
+                  {projForm.image && (
+                    <img
+                      src={projForm.image}
+                      alt="Project preview"
+                      className="w-12 h-10 object-cover border border-[#c8c6be] rounded-sm shrink-0"
+                      onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                    />
                   )}
                 </div>
-              </form>
-            </div>
+              </div>
 
-            {/* List of Pictures currently in Supabase */}
-            <div className="nb-card">
-              <div className="nb-card-header">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <h3 className="nb-card-title">LIVE SUPABASE PICTURES ({picturesList.length})</h3>
-                  <p className="mono-micro" style={{ color: 'rgba(250, 248, 245, 0.5)', marginTop: '4px' }}>
-                    Records from table <code>public.pictures</code>
-                  </p>
+                  <label className="admin-label">Tech Stack Tags (Comma separated)</label>
+                  <input
+                    type="text"
+                    className="admin-input"
+                    value={projForm.tags}
+                    onChange={(e) => setProjForm({ ...projForm, tags: e.target.value })}
+                    placeholder="TypeScript, Rust, Redis"
+                  />
+                </div>
+
+                <div>
+                  <label className="admin-label">Stars Count / Metric (Optional)</label>
+                  <input
+                    type="text"
+                    className="admin-input"
+                    value={projForm.stars_count}
+                    onChange={(e) => setProjForm({ ...projForm, stars_count: e.target.value })}
+                    placeholder="e.g. ★ 124 stars"
+                  />
                 </div>
               </div>
 
-              {picturesList.length === 0 ? (
-                <div style={{ padding: '24px', textAlign: 'center', color: 'rgba(250, 248, 245, 0.4)' }}>
-                  No pictures registered yet. Upload an image above to automatically save to Supabase.
-                </div>
-              ) : (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }}>
-                  {picturesList.map((pic) => (
-                    <div
-                      key={pic.id || pic.name}
-                      style={{
-                        background: 'rgba(250, 248, 245, 0.03)',
-                        border: '1px solid rgba(250, 248, 245, 0.15)',
-                        padding: '16px',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        gap: '10px'
-                      }}
-                    >
-                      <div style={{ width: '100%', height: '140px', overflow: 'hidden', background: '#000', border: '1px solid rgba(250, 248, 245, 0.1)' }}>
-                        <img
-                          src={pic.url}
-                          alt={pic.title || pic.name}
-                          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                        />
-                      </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-                        <strong style={{ fontSize: '14px', color: 'var(--bg-white)' }}>{pic.title || pic.name}</strong>
-                        <span className="mono-micro" style={{ padding: '2px 6px', background: 'rgba(122, 14, 34, 0.6)', color: '#FAF8F5' }}>
-                          {pic.category || 'MEDIA'}
-                        </span>
-                      </div>
-                      <span className="mono-micro" style={{ fontSize: '10px', color: 'rgba(250, 248, 245, 0.4)', wordBreak: 'break-all' }}>
-                        {pic.url}
-                      </span>
-                      <div style={{ display: 'flex', gap: '8px', marginTop: 'auto', paddingTop: '8px', borderTop: '1px solid rgba(250, 248, 245, 0.1)' }}>
-                        <button
-                          type="button"
-                          className="nb-btn nb-btn-outline nb-btn-sm"
-                          style={{ flex: 1 }}
-                          onClick={() => handleEditPicture(pic)}
-                        >
-                          EDIT
-                        </button>
-                        <button
-                          type="button"
-                          className="nb-btn nb-btn-danger nb-btn-sm"
-                          style={{ flex: 1 }}
-                          onClick={() => handleDeletePicture(pic.id)}
-                        >
-                          DELETE
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        )}
+              <div className="flex items-center gap-4 pt-1">
+                <label className="flex items-center gap-1.5 text-xs font-mono cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={projForm.star}
+                    onChange={(e) => setProjForm({ ...projForm, star: e.target.checked })}
+                  />
+                  <span>Featured (Gold Star ★)</span>
+                </label>
 
-        {/* ================= TAB 5: ACCOUNT SECURITY ================= */}
-        {activeTab === 'security' && (
-          <div className="nb-card" style={{ maxWidth: '640px' }}>
-            <div className="nb-card-header">
-              <div>
-                <h2 className="nb-card-title">[ACCOUNT SECURITY // CREDENTIALS]</h2>
-                <p className="mono-micro" style={{ color: 'rgba(250, 248, 245, 0.5)', marginTop: '4px' }}>
-                  Change username or password directly. Stored securely in database via bcrypt hash.
-                </p>
-              </div>
-            </div>
-
-            <form onSubmit={handleSaveSecurity}>
-              <div className="nb-form-group" style={{ marginBottom: '18px' }}>
-                <label className="nb-label">ADMIN USERNAME</label>
-                <input
-                  type="text"
-                  className="nb-input"
-                  value={newUsername}
-                  onChange={(e) => setNewUsername(e.target.value)}
-                  placeholder="admin username"
-                  required
-                />
+                <label className="flex items-center gap-1.5 text-xs font-mono cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={projForm.published}
+                    onChange={(e) => setProjForm({ ...projForm, published: e.target.checked })}
+                  />
+                  <span>Published on Home</span>
+                </label>
               </div>
 
-              <div className="nb-form-group" style={{ marginBottom: '18px' }}>
-                <label className="nb-label">NEW PASSWORD (LEAVE BLANK TO KEEP UNCHANGED)</label>
-                <input
-                  type="password"
-                  className="nb-input"
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  placeholder="minimum 4 characters"
-                />
-              </div>
-
-              <div className="nb-form-group" style={{ marginBottom: '26px' }}>
-                <label className="nb-label">CONFIRM NEW PASSWORD</label>
-                <input
-                  type="password"
-                  className="nb-input"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  placeholder="re-enter new password"
-                />
-              </div>
-
-              <div style={{ display: 'flex', gap: '12px' }}>
-                <button type="submit" className="nb-btn nb-btn-primary">
-                  UPDATE CREDENTIALS ✓
+              <div className="flex items-center gap-2 pt-2">
+                <button type="submit" className="admin-btn-primary">
+                  {editingProjId ? 'UPDATE PROJECT →' : 'ADD PROJECT →'}
                 </button>
+                {editingProjId && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingProjId(null)
+                      setProjForm({
+                        title: '',
+                        category: 'SOFTWARE',
+                        description: '',
+                        url: '',
+                        image: '',
+                        star: false,
+                        stars_count: '',
+                        published: true,
+                        tags: ''
+                      })
+                    }}
+                    className="link-badge font-mono text-xs !py-1.5"
+                  >
+                    Cancel Edit
+                  </button>
+                )}
               </div>
             </form>
+          </div>
 
-            <div style={{ marginTop: '28px', paddingTop: '16px', borderTop: '1px solid rgba(250, 248, 245, 0.1)' }}>
-              <div className="mono-micro" style={{ fontSize: '10px', color: 'rgba(250, 248, 245, 0.45)', lineHeight: 1.6 }}>
-                [NOTE] Credentials are never stored in repository files and cannot be leaked via git push.
-                You can also reset credentials from terminal anytime with:
-                <br />
-                <code style={{ color: '#FAF8F5', background: 'rgba(250, 248, 245, 0.08)', padding: '2px 6px' }}>
-                  npm run admin:set &lt;username&gt; &lt;password&gt;
-                </code>
+          {/* List of Projects */}
+          <div className="cmd-box">
+            <div className="cmd-header">projects.list ({projectsList.length})</div>
+
+            {projectsList.length === 0 ? (
+              <div className="text-xs font-mono text-terminal-prompt py-4 text-center">
+                // No projects in database. Section is currently hidden on home page.
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {projectsList.map((proj) => (
+                  <div key={proj.id} className="item-card flex items-start justify-between gap-3">
+                    <div className="flex items-start gap-2.5">
+                      {proj.image && (
+                        <img
+                          src={proj.image}
+                          alt={proj.title}
+                          className="w-12 h-10 object-cover border border-[#c8c6be] rounded-sm shrink-0"
+                        />
+                      )}
+                      <div>
+                        <div className="font-semibold text-xs text-on-surface">
+                          {proj.title} {proj.star && <span className="text-amber-500">★</span>}
+                        </div>
+                        <div className="text-[11px] text-on-surface-variant line-clamp-1">
+                          {proj.description}
+                        </div>
+                        {proj.url && (
+                          <a
+                            href={proj.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-[10px] text-accent-link underline font-mono"
+                          >
+                            {proj.url}
+                          </a>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <button
+                        onClick={() => handleProjEdit(proj)}
+                        className="link-badge font-mono text-[10px]"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => handleProjDelete(proj.id)}
+                        className="admin-btn-danger"
+                      >
+                        Delete ✕
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ==================================================== */}
+      {/* TAB 4: MUSIC                                         */}
+      {/* ==================================================== */}
+      {activeTab === 'music' && (
+        <div className="space-y-6">
+          <div className="cmd-box" id="section-admin-music">
+            <div className="cmd-header">
+              {editingAlbumId ? `music // edit album #${editingAlbumId}` : 'music // add vinyl album'}
+            </div>
+            <div className="text-xs text-on-surface-variant font-mono mb-3">
+              Manage the 18-album analog listening rack displayed on <a href="/music" className="underline">/music</a>.
+            </div>
+
+            <form onSubmit={handleAlbumSubmit} className="space-y-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="admin-label">Album Title *</label>
+                  <input
+                    type="text"
+                    className="admin-input"
+                    value={albumForm.title}
+                    onChange={(e) => setAlbumForm({ ...albumForm, title: e.target.value })}
+                    placeholder="e.g. Blonde"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="admin-label">Artist *</label>
+                  <input
+                    type="text"
+                    className="admin-input"
+                    value={albumForm.artist}
+                    onChange={(e) => setAlbumForm({ ...albumForm, artist: e.target.value })}
+                    placeholder="e.g. Frank Ocean"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="admin-label">Release Year</label>
+                  <input
+                    type="text"
+                    className="admin-input"
+                    value={albumForm.year}
+                    onChange={(e) => setAlbumForm({ ...albumForm, year: e.target.value })}
+                    placeholder="2016"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="admin-label">Genre</label>
+                  <input
+                    type="text"
+                    className="admin-input"
+                    value={albumForm.genre}
+                    onChange={(e) => setAlbumForm({ ...albumForm, genre: e.target.value })}
+                    placeholder="r&b / ambient"
+                  />
+                </div>
+
+                <div>
+                  <label className="admin-label">Listening Tag / Mood</label>
+                  <input
+                    type="text"
+                    className="admin-input"
+                    value={albumForm.tag}
+                    onChange={(e) => setAlbumForm({ ...albumForm, tag: e.target.value })}
+                    placeholder="night drive"
+                  />
+                </div>
+
+                <div>
+                  <label className="admin-label">Display Row (1, 2, or 3)</label>
+                  <select
+                    className="admin-input"
+                    value={albumForm.row}
+                    onChange={(e) => setAlbumForm({ ...albumForm, row: Number(e.target.value) })}
+                  >
+                    <option value={1}>Row 1 (Upper Rack)</option>
+                    <option value={2}>Row 2 (Middle Rack)</option>
+                    <option value={3}>Row 3 (Lower Rack)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
+                <div className="sm:col-span-2">
+                  <label className="admin-label">Album Artwork / Cover Image URL</label>
+                  <input
+                    type="text"
+                    className="admin-input"
+                    value={albumForm.image}
+                    onChange={(e) => setAlbumForm({ ...albumForm, image: e.target.value })}
+                    placeholder="https://... or /uploads/album.jpg"
+                  />
+                </div>
+                <div className="flex gap-2 items-center">
+                  <button
+                    type="button"
+                    onClick={() => triggerUpload((url) => setAlbumForm((prev) => ({ ...prev, image: url })))}
+                    className="link-badge w-full justify-center !py-2 font-mono text-xs"
+                    disabled={uploading}
+                  >
+                    {uploading ? 'Uploading…' : '↑ Upload Album Cover'}
+                  </button>
+                  {albumForm.image && (
+                    <img
+                      src={albumForm.image}
+                      alt="Cover preview"
+                      className="w-8 h-8 rounded-[2px] object-cover border border-[#c8c6be] shrink-0"
+                    />
+                  )}
+                </div>
+              </div>
+
+              <div>
+                <label className="admin-label">Listening Note / Impressions</label>
+                <textarea
+                  className="admin-input"
+                  rows={2}
+                  value={albumForm.note}
+                  onChange={(e) => setAlbumForm({ ...albumForm, note: e.target.value })}
+                  placeholder="Warm Rhodes keys with masterclass dynamic headroom..."
+                />
+              </div>
+
+              <div className="flex items-center gap-2 pt-1">
+                <button type="submit" className="admin-btn-primary">
+                  {editingAlbumId ? 'UPDATE ALBUM →' : 'ADD ALBUM →'}
+                </button>
+                {editingAlbumId && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingAlbumId(null)
+                      setAlbumForm({
+                        title: '',
+                        artist: '',
+                        year: '2024',
+                        genre: '',
+                        tag: '',
+                        note: '',
+                        progress: 70,
+                        time: '02:40 / 03:50',
+                        initial: '',
+                        gradient: 'linear-gradient(135deg, #1f2937, #111827)',
+                        row: 1
+                      })
+                    }}
+                    className="link-badge font-mono text-xs !py-1.5"
+                  >
+                    Cancel Edit
+                  </button>
+                )}
+              </div>
+            </form>
+          </div>
+
+          {/* Albums List */}
+          <div className="cmd-box">
+            <div className="cmd-header">music.albums ({musicAlbums.length})</div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {musicAlbums.map((album) => (
+                <div key={album.id} className="item-card flex items-start justify-between gap-2">
+                  <div className="flex items-start gap-2.5">
+                    {album.image || (album.gradient && (album.gradient.startsWith('http') || album.gradient.startsWith('/uploads'))) ? (
+                      <img
+                        src={album.image || album.gradient}
+                        alt={album.title}
+                        className="w-9 h-9 rounded-[2px] object-cover border border-[#c8c6be] shrink-0"
+                      />
+                    ) : (
+                      <div
+                        className="w-9 h-9 rounded-[2px] flex items-center justify-center font-mono font-bold text-white text-[10px] shadow-sm shrink-0"
+                        style={{ background: album.gradient || 'linear-gradient(135deg, #1f2937, #111827)' }}
+                      >
+                        {album.initial || (album.title ? album.title.slice(0, 2).toUpperCase() : 'MU')}
+                      </div>
+                    )}
+                    <div>
+                      <div className="font-semibold text-xs text-on-surface">
+                        {album.title}
+                      </div>
+                      <div className="text-[11px] text-[#2b2b28]">
+                        {album.artist} • <span className="text-on-surface-variant font-mono">{album.year}</span>
+                      </div>
+                      <div className="text-[10px] text-terminal-prompt font-mono">
+                        {album.tag || album.genre} • Row {album.row || album.row_index || 1}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-1 shrink-0">
+                    <button
+                      onClick={() => handleAlbumEdit(album)}
+                      className="link-badge font-mono text-[10px]"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      onClick={() => handleAlbumDelete(album.id)}
+                      className="admin-btn-danger"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ==================================================== */}
+      {/* TAB 5: TIGUAN                                        */}
+      {/* ==================================================== */}
+      {activeTab === 'tiguan' && (
+        <div className="space-y-6">
+          <div className="cmd-box" id="section-admin-tiguan">
+            <div className="cmd-header">2009 tiguan // vehicle configuration</div>
+            <div className="text-xs text-on-surface-variant font-mono mb-4">
+              Manage specs, modifications, and high-resolution chassis photos for <a href="/tiguan" className="underline">/tiguan</a>.
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+              <div>
+                <label className="admin-label">Vehicle Title</label>
+                <input
+                  type="text"
+                  className="admin-input"
+                  value={tiguan.title || ''}
+                  onChange={(e) => setTiguan({ ...tiguan, title: e.target.value })}
+                  placeholder="2009 Volkswagen Tiguan TSI 2.0"
+                />
+              </div>
+
+              <div>
+                <label className="admin-label">Factory Color</label>
+                <input
+                  type="text"
+                  className="admin-input"
+                  value={tiguan.color || ''}
+                  onChange={(e) => setTiguan({ ...tiguan, color: e.target.value })}
+                  placeholder="Deep Black Pearl"
+                />
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleTiguanSave}
+              className="admin-btn-primary mb-6"
+            >
+              SAVE VEHICLE SPECS →
+            </button>
+
+            {/* Photos Sub-section */}
+            <div className="pt-4 border-t border-[#e2e0d8]">
+              <div className="text-xs font-mono font-semibold text-terminal-prompt mb-3">
+                &gt; tiguan photos ({tiguan.photos?.length || 0})
+              </div>
+
+              {newTiguanPhotoUrl && (
+                <div className="flex items-center gap-2.5 p-2 bg-[#f0eee8] border border-[#c8c6be] rounded mb-2">
+                  <img
+                    src={newTiguanPhotoUrl}
+                    alt="New photo preview"
+                    className="w-16 h-12 object-cover border border-[#75736c] rounded-xs shrink-0"
+                    onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                  />
+                  <div className="text-[11px] font-mono text-terminal-prompt truncate">
+                    Ready to add: <span className="text-on-surface font-semibold">{newTiguanPhotoUrl}</span>
+                  </div>
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-3">
+                <input
+                  type="text"
+                  className="admin-input"
+                  value={newTiguanPhotoUrl}
+                  onChange={(e) => setNewTiguanPhotoUrl(e.target.value)}
+                  placeholder="Photo URL (https://...)"
+                />
+                <input
+                  type="text"
+                  className="admin-input"
+                  value={newTiguanPhotoCaption}
+                  onChange={(e) => setNewTiguanPhotoCaption(e.target.value)}
+                  placeholder="Caption (e.g. suspension install)"
+                />
+                <div className="flex gap-1.5">
+                  <button
+                    type="button"
+                    onClick={handleAddTiguanPhoto}
+                    className="admin-btn-primary flex-1 justify-center"
+                  >
+                    + Add Photo
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => triggerUpload((url) => setNewTiguanPhotoUrl(url))}
+                    className="link-badge font-mono text-xs"
+                    disabled={uploading}
+                  >
+                    ↑ Upload
+                  </button>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                {(tiguan.photos || []).map((photo) => (
+                  <div key={photo.id} className="item-card relative">
+                    <img
+                      src={photo.url}
+                      alt={photo.caption || 'Tiguan photo'}
+                      className="w-full h-28 object-cover border border-[#c8c6be] rounded-sm mb-1.5"
+                    />
+                    <div className="text-[11px] font-mono text-terminal-prompt truncate">
+                      {photo.caption || 'Untitled photo'}
+                    </div>
+                    <button
+                      onClick={() => handleRemoveTiguanPhoto(photo.id)}
+                      className="admin-btn-danger mt-1 w-full text-center"
+                    >
+                      Remove ✕
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Modifications Sub-section */}
+            <div className="pt-4 border-t border-[#e2e0d8] mt-6">
+              <div className="text-xs font-mono font-semibold text-terminal-prompt mb-3">
+                &gt; performance modifications ({tiguan.mods?.length || 0})
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-3">
+                <input
+                  type="text"
+                  className="admin-input"
+                  value={newModName}
+                  onChange={(e) => setNewModName(e.target.value)}
+                  placeholder="Part name (e.g. Bilstein B14 Coilovers)"
+                />
+                <input
+                  type="text"
+                  className="admin-input"
+                  value={newModDetail}
+                  onChange={(e) => setNewModDetail(e.target.value)}
+                  placeholder="Spec / Detail (-42mm stance)"
+                />
+                <button
+                  type="button"
+                  onClick={handleAddMod}
+                  className="admin-btn-primary justify-center"
+                >
+                  + Add Mod
+                </button>
+              </div>
+
+              <div className="space-y-1.5">
+                {(tiguan.mods || []).map((mod, idx) => (
+                  <div key={idx} className="item-card flex items-center justify-between py-1.5 px-3">
+                    <span className="text-xs font-semibold">{mod.name}</span>
+                    <div className="flex items-center gap-3">
+                      <span className="text-xs font-mono text-on-surface-variant">{mod.detail}</span>
+                      <button
+                        onClick={() => handleRemoveMod(idx)}
+                        className="admin-btn-danger !py-0.5"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           </div>
-        )}
-      </main>
+        </div>
+      )}
 
-      {/* Real-time Toast Notification */}
-      {toast && (
-        <div className={`nb-toast ${toast.isError ? 'error' : ''}`}>
-          <span>{toast.isError ? '[!] ERROR:' : '[✓] SUCCESS:'}</span>
-          <span>{toast.message}</span>
+      {/* ==================================================== */}
+      {/* TAB 6: FRIENDS & FILM                                */}
+      {/* ==================================================== */}
+      {activeTab === 'friends' && (
+        <div className="space-y-6">
+          <div className="cmd-box" id="section-admin-friends">
+            <div className="cmd-header">friends &amp; film // add photograph</div>
+            <div className="text-xs text-on-surface-variant font-mono mb-3">
+              Upload and manage analog 35mm film memories showcased on <a href="/friends" className="underline">/friends</a>.
+            </div>
+
+            <form onSubmit={handleAddFriendPhoto} className="space-y-3">
+              {friendPhotoUrl && (
+                <div className="flex items-center gap-2.5 p-2 bg-[#f0eee8] border border-[#c8c6be] rounded mb-2">
+                  <img
+                    src={friendPhotoUrl}
+                    alt="Film photo preview"
+                    className="w-16 h-12 object-cover border border-[#75736c] rounded-xs shrink-0"
+                    onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                  />
+                  <div className="text-[11px] font-mono text-terminal-prompt truncate">
+                    Ready to add: <span className="text-on-surface font-semibold">{friendPhotoUrl}</span>
+                  </div>
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
+                <div className="sm:col-span-2">
+                  <label className="admin-label">Photo URL *</label>
+                  <input
+                    type="text"
+                    className="admin-input"
+                    value={friendPhotoUrl}
+                    onChange={(e) => setFriendPhotoUrl(e.target.value)}
+                    placeholder="https://... or /uploads/film.jpg"
+                    required
+                  />
+                </div>
+                <div>
+                  <button
+                    type="button"
+                    onClick={() => triggerUpload((url) => setFriendPhotoUrl(url))}
+                    className="link-badge w-full justify-center !py-2 font-mono text-xs"
+                    disabled={uploading}
+                  >
+                    {uploading ? 'Uploading…' : '↑ Upload Film Photo'}
+                  </button>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="admin-label">Photo Title / Caption</label>
+                  <input
+                    type="text"
+                    className="admin-input"
+                    value={friendPhotoTitle}
+                    onChange={(e) => setFriendPhotoTitle(e.target.value)}
+                    placeholder="e.g. Mt. Tam ridge sunset"
+                  />
+                </div>
+
+                <div>
+                  <label className="admin-label">Location &amp; Meta</label>
+                  <input
+                    type="text"
+                    className="admin-input"
+                    value={friendPhotoMeta}
+                    onChange={(e) => setFriendPhotoMeta(e.target.value)}
+                    placeholder="e.g. CA • Oct 2023"
+                  />
+                </div>
+              </div>
+
+              <button type="submit" className="admin-btn-primary">
+                + ADD TO FRIENDS GALLERY →
+              </button>
+            </form>
+          </div>
+
+          {/* Friends Photos Gallery */}
+          <div className="cmd-box">
+            <div className="cmd-header">friends.gallery ({friendsPhotos.length})</div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+              {friendsPhotos.map((photo) => (
+                <div key={photo.id} className="item-card">
+                  <img
+                    src={photo.url}
+                    alt={photo.title || 'Friend photo'}
+                    className="w-full h-32 object-cover border border-[#c8c6be] rounded-sm mb-1.5"
+                  />
+                  <div className="font-semibold text-xs text-on-surface truncate">
+                    {photo.title || 'Untitled'}
+                  </div>
+                  <div className="text-[10px] font-mono text-terminal-prompt truncate mb-2">
+                    {photo.meta || 'Film • 35mm'}
+                  </div>
+                  <button
+                    onClick={() => handleDeleteFriendPhoto(photo.id)}
+                    className="admin-btn-danger w-full text-center"
+                  >
+                    Delete ✕
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ==================================================== */}
+      {/* TAB 7: CAT (MOCHI)                                   */}
+      {/* ==================================================== */}
+      {activeTab === 'cat' && (
+        <div className="space-y-6">
+          <div className="cmd-box" id="section-admin-cat">
+            <div className="cmd-header">mochi (cat) // chief qa &amp; keyboard blocker</div>
+            <div className="text-xs text-on-surface-variant font-mono mb-4">
+              Configure Mochi's profile, pat count, and daily surveillance photos on <a href="/cat" className="underline">/cat</a>.
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+              <div>
+                <label className="admin-label">Cat Name</label>
+                <input
+                  type="text"
+                  className="admin-input"
+                  value={cat.name || 'Mochi'}
+                  onChange={(e) => setCat({ ...cat, name: e.target.value })}
+                />
+              </div>
+
+              <div>
+                <label className="admin-label">Role / Job Title</label>
+                <input
+                  type="text"
+                  className="admin-input"
+                  value={cat.role || 'Chief QA & Keyboard Blocker'}
+                  onChange={(e) => setCat({ ...cat, role: e.target.value })}
+                />
+              </div>
+
+              <div>
+                <label className="admin-label">Head Pats Counter</label>
+                <input
+                  type="number"
+                  className="admin-input"
+                  value={cat.pats ?? 0}
+                  onChange={(e) => setCat({ ...cat, pats: Number(e.target.value) || 0 })}
+                />
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleCatSave}
+              className="admin-btn-primary mb-6"
+            >
+              SAVE CAT PROFILE →
+            </button>
+
+            {/* Photos Sub-section */}
+            <div className="pt-4 border-t border-[#e2e0d8]">
+              <div className="text-xs font-mono font-semibold text-terminal-prompt mb-3">
+                &gt; mochi photos ({cat.photos?.length || 0})
+              </div>
+
+              {newCatPhotoUrl && (
+                <div className="flex items-center gap-2.5 p-2 bg-[#f0eee8] border border-[#c8c6be] rounded mb-2">
+                  <img
+                    src={newCatPhotoUrl}
+                    alt="Cat photo preview"
+                    className="w-16 h-12 object-cover border border-[#75736c] rounded-xs shrink-0"
+                    onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                  />
+                  <div className="text-[11px] font-mono text-terminal-prompt truncate">
+                    Ready to add: <span className="text-on-surface font-semibold">{newCatPhotoUrl}</span>
+                  </div>
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-3">
+                <input
+                  type="text"
+                  className="admin-input"
+                  value={newCatPhotoUrl}
+                  onChange={(e) => setNewCatPhotoUrl(e.target.value)}
+                  placeholder="Photo URL (https://...)"
+                />
+                <input
+                  type="text"
+                  className="admin-input"
+                  value={newCatPhotoCaption}
+                  onChange={(e) => setNewCatPhotoCaption(e.target.value)}
+                  placeholder="Caption (e.g. napping on mechanical keyboard)"
+                />
+                <div className="flex gap-1.5">
+                  <button
+                    type="button"
+                    onClick={handleAddCatPhoto}
+                    className="admin-btn-primary flex-1 justify-center"
+                  >
+                    + Add Photo
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => triggerUpload((url) => setNewCatPhotoUrl(url))}
+                    className="link-badge font-mono text-xs"
+                    disabled={uploading}
+                  >
+                    ↑ Upload
+                  </button>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                {(cat.photos || []).map((photo) => (
+                  <div key={photo.id} className="item-card relative">
+                    <img
+                      src={photo.url}
+                      alt={photo.caption || 'Cat photo'}
+                      className="w-full h-32 object-cover border border-[#c8c6be] rounded-sm mb-1.5"
+                    />
+                    <div className="text-[11px] font-mono text-terminal-prompt truncate">
+                      {photo.caption || 'Untitled snapshot'}
+                    </div>
+                    <button
+                      onClick={() => handleRemoveCatPhoto(photo.id)}
+                      className="admin-btn-danger mt-1 w-full text-center"
+                    >
+                      Remove ✕
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ==================================================== */}
+      {/* TAB 8: SECURITY                                      */}
+      {/* ==================================================== */}
+      {activeTab === 'security' && (
+        <div className="cmd-box" id="section-admin-security">
+          <div className="cmd-header">security // account &amp; database credentials</div>
+          <div className="text-xs text-on-surface-variant font-mono mb-4">
+            Manage your master console username and authentication password. Protected with bcrypt 10 rounds.
+          </div>
+
+          {/* Database Health Pill */}
+          <div className="mb-4 p-3 bg-white border border-[#c8c6be] text-xs font-mono rounded-sm space-y-1">
+            <div className="flex items-center justify-between">
+              <span className="text-terminal-prompt">Database Engine:</span>
+              <span className="text-emerald-700 font-semibold">Supabase (PostgreSQL)</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-terminal-prompt">Current Operator:</span>
+              <span className="font-semibold">{who}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-terminal-prompt">API Endpoint:</span>
+              <span>http://localhost:4000/api</span>
+            </div>
+          </div>
+
+          <form onSubmit={handleAccountUpdate} className="space-y-3 max-w-[420px]">
+            <div>
+              <label className="admin-label">Username</label>
+              <input
+                type="text"
+                className="admin-input"
+                value={newUsername}
+                onChange={(e) => setNewUsername(e.target.value)}
+                placeholder="Admin username"
+                required
+              />
+            </div>
+
+            <div>
+              <label className="admin-label">New Password (Min 4 chars, leave blank to keep current)</label>
+              <input
+                type="password"
+                className="admin-input"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                placeholder="••••••••"
+              />
+            </div>
+
+            <div>
+              <label className="admin-label">Confirm New Password</label>
+              <input
+                type="password"
+                className="admin-input"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                placeholder="••••••••"
+              />
+            </div>
+
+            <div className="pt-2">
+              <button
+                type="submit"
+                className="admin-btn-primary"
+                disabled={savingSecurity}
+              >
+                {savingSecurity ? 'Updating Supabase…' : 'UPDATE CREDENTIALS →'}
+              </button>
+            </div>
+          </form>
         </div>
       )}
     </div>

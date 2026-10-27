@@ -267,6 +267,27 @@ export const db = {
       result.instagram_url = result.instagram_url || result.x_url || null
       if (result.linkedin_url) result.linkedin_url = normalizeSocialUrl(result.linkedin_url)
       if (result.github_url) result.github_url = normalizeSocialUrl(result.github_url)
+
+      try {
+        const local = db.getLocalData()
+        local.profile = {
+          ...(local.profile || {}),
+          name: result.name,
+          hero: result.hero,
+          headline: result.hero,
+          photo: result.photo,
+          email: result.email,
+          github_url: result.github_url,
+          linkedin_url: result.linkedin_url,
+          instagram_url: result.instagram_url,
+          who_am_i: result.who_am_i,
+          what_i_did: result.what_i_did,
+          school: result.school
+        }
+        db.saveLocalData(local)
+      } catch (err) {
+        console.warn('[Sync local profile notice]', err.message)
+      }
     }
     return result
   },
@@ -478,60 +499,6 @@ export const db = {
     return true
   },
 
-  // ---------- Threads ----------
-  getThreads: async (publishedOnly = true) => {
-    let q = supabase.from('threads').select('*').order('created_at', { ascending: false })
-    if (publishedOnly) q = q.eq('published', true)
-    const { data, error } = await q
-    if (error) throw error
-    return data || []
-  },
-
-  getThread: async (id, publishedOnly = false) => {
-    let q = supabase.from('threads').select('*').eq('id', id)
-    if (publishedOnly) q = q.eq('published', true)
-    const { data, error } = await q.maybeSingle()
-    if (error) throw error
-    return data
-  },
-
-  createThread: async (b) => {
-    const { data, error } = await supabase
-      .from('threads')
-      .insert({
-        title: b.title,
-        content: b.content || '',
-        published: b.published === false ? false : true
-      })
-      .select()
-      .single()
-    if (error) throw error
-    return data
-  },
-
-  updateThread: async (id, b) => {
-    const cur = await db.getThread(id, false)
-    if (!cur) return null
-    const { data, error } = await supabase
-      .from('threads')
-      .update({
-        title: b.title ?? cur.title,
-        content: b.content ?? cur.content,
-        published: b.published === undefined ? cur.published : Boolean(b.published)
-      })
-      .eq('id', id)
-      .select()
-      .single()
-    if (error) throw error
-    return data
-  },
-
-  deleteThread: async (id) => {
-    const { error } = await supabase.from('threads').delete().eq('id', id)
-    if (error) throw error
-    return true
-  },
-
   // ---------- Admin Auth ----------
   getAdminStatus: async () => {
     const { count, error } = await supabase
@@ -591,113 +558,6 @@ export const db = {
       .maybeSingle()
     if (error) throw error
     return data
-  },
-
-  // ---------- Services ----------
-  getServices: async (publishedOnly = true) => {
-    try {
-      let q = supabase.from('services').select('*').order('order_index', { ascending: true })
-      if (publishedOnly) {
-        q = q.neq('published', false)
-      }
-      const { data, error } = await q
-      if (!error && Array.isArray(data)) {
-        return data.map((item) => ({
-          ...item,
-          title: item.title || item.name || item.service || ''
-        }))
-      }
-      if (error) {
-        console.warn('[Supabase Services Notice]', error.message)
-      }
-    } catch (err) {
-      console.warn('[Supabase Services Fallback]', err.message)
-    }
-    return []
-  },
-
-  createService: async (b) => {
-    const payload = {
-      title: b.title || '',
-      description: b.description || '',
-      link: b.link || '',
-      order_index: Number(b.order_index) || 0,
-      published: b.published !== undefined ? Boolean(b.published) : true
-    }
-    const { data, error } = await supabase.from('services').insert(payload).select().single()
-    if (error) throw error
-    return data
-  },
-
-  updateService: async (id, b) => {
-    const payload = {}
-    if (b.title !== undefined) payload.title = b.title
-    if (b.description !== undefined) payload.description = b.description
-    if (b.link !== undefined) payload.link = b.link
-    if (b.order_index !== undefined) payload.order_index = Number(b.order_index)
-    if (b.published !== undefined) payload.published = Boolean(b.published)
-
-    const { data, error } = await supabase.from('services').update(payload).eq('id', id).select().single()
-    if (error) throw error
-    return data
-  },
-
-  deleteService: async (id) => {
-    const { error } = await supabase.from('services').delete().eq('id', id)
-    if (error) throw error
-    return true
-  },
-
-  // ---------- Awards & Courses ----------
-  getAwardsAndCourses: async (publishedOnly = true) => {
-    try {
-      let q = supabase.from('awards_and_courses').select('*').order('order_index', { ascending: true })
-      if (publishedOnly) {
-        q = q.neq('published', false)
-      }
-      const { data, error } = await q
-      if (!error && Array.isArray(data)) {
-        return data.map((item) => ({
-          ...item,
-          title: item.title || item.name || item.course || item.award || ''
-        }))
-      }
-    } catch (err) {
-      console.warn('[Supabase Awards Notice]', err.message)
-    }
-    return []
-  },
-
-  createAwardCourse: async (b) => {
-    const payload = {
-      title: b.title || '',
-      description: b.description || '',
-      link: b.link || '',
-      order_index: Number(b.order_index) || 0,
-      published: b.published !== undefined ? Boolean(b.published) : true
-    }
-    const { data, error } = await supabase.from('awards_and_courses').insert(payload).select().single()
-    if (error) throw error
-    return data
-  },
-
-  updateAwardCourse: async (id, b) => {
-    const payload = {}
-    if (b.title !== undefined) payload.title = b.title
-    if (b.description !== undefined) payload.description = b.description
-    if (b.link !== undefined) payload.link = b.link
-    if (b.order_index !== undefined) payload.order_index = Number(b.order_index)
-    if (b.published !== undefined) payload.published = Boolean(b.published)
-
-    const { data, error } = await supabase.from('awards_and_courses').update(payload).eq('id', id).select().single()
-    if (error) throw error
-    return data
-  },
-
-  deleteAwardCourse: async (id) => {
-    const { error } = await supabase.from('awards_and_courses').delete().eq('id', id)
-    if (error) throw error
-    return true
   },
 
   // ---------- Pictures (Media / Images in Supabase) ----------
@@ -801,5 +661,431 @@ export const db = {
       console.warn('[Supabase Storage upload warning]', e.message)
     }
     return null
+  },
+
+  // ---------- Local File Helper Fallback ----------
+  getLocalData: () => {
+    try {
+      const raw = fs.readFileSync(path.join(ROOT, 'db', 'portfolio-data.json'), 'utf8')
+      return JSON.parse(raw)
+    } catch {
+      return {}
+    }
+  },
+
+  saveLocalData: (data) => {
+    try {
+      const dir = path.join(ROOT, 'db')
+      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
+      fs.writeFileSync(path.join(dir, 'portfolio-data.json'), JSON.stringify(data, null, 2), 'utf8')
+    } catch (err) {
+      console.error('[saveLocalData error]', err.message)
+    }
+  },
+
+  // ---------- Experiences ----------
+  getExperiences: async (publishedOnly = true) => {
+    try {
+      let q = supabase.from('experiences').select('*').order('order_index', { ascending: true })
+      if (publishedOnly) q = q.eq('published', true)
+      const { data, error } = await q
+      if (!error && Array.isArray(data)) {
+        return data.map((exp) => ({
+          ...exp,
+          logo: exp.logo || (exp.initial_bg && (exp.initial_bg.startsWith('http') || exp.initial_bg.startsWith('/uploads')) ? exp.initial_bg : ''),
+          job_type: exp.job_type || (Array.isArray(exp.badges) && exp.badges[0]) || 'Full-time'
+        }))
+      }
+    } catch (err) {
+      console.warn('[Supabase Experiences Notice]', err.message)
+    }
+    const local = db.getLocalData()
+    return (local.experiences || []).map((exp) => ({
+      ...exp,
+      logo: exp.logo || (exp.initial_bg && (exp.initial_bg.startsWith('http') || exp.initial_bg.startsWith('/uploads')) ? exp.initial_bg : ''),
+      job_type: exp.job_type || (Array.isArray(exp.badges) && exp.badges[0]) || 'Full-time'
+    }))
+  },
+
+  createExperience: async (b) => {
+    const local = db.getLocalData()
+    const logoUrl = b.logo || b.image || ''
+    const jobType = b.job_type || (Array.isArray(b.badges) && b.badges[0]) || 'Full-time'
+    const newExp = {
+      id: Date.now(),
+      company: b.company || '',
+      initial: b.initial || (b.company ? b.company[0].toUpperCase() : 'E'),
+      initial_bg: logoUrl || b.initial_bg || '#1b1c18',
+      role: b.role || '',
+      location: b.location || '',
+      period: b.period || '',
+      star: Boolean(b.star),
+      description: b.description || '',
+      badges: [jobType],
+      order_index: Number(b.order_index) || 0,
+      published: b.published !== false
+    }
+    try {
+      const { data, error } = await supabase.from('experiences').insert(newExp).select().single()
+      if (!error && data) return { ...data, logo: logoUrl, job_type: jobType }
+      if (error) console.warn('[Supabase createExperience error]', error.message)
+    } catch (err) {
+      console.warn('[Supabase createExperience exception]', err.message)
+    }
+    const item = { ...newExp, logo: logoUrl, job_type: jobType }
+    local.experiences = [...(local.experiences || []), item]
+    db.saveLocalData(local)
+    return item
+  },
+
+  updateExperience: async (id, b) => {
+    const local = db.getLocalData()
+    const logoUrl = b.logo !== undefined ? (b.logo || b.image || '') : undefined
+    const jobType = b.job_type || (Array.isArray(b.badges) && b.badges[0]) || undefined
+
+    const allowed = ['company', 'initial', 'initial_bg', 'role', 'location', 'period', 'star', 'description', 'badges', 'order_index', 'published']
+    const payload = {}
+    for (const k of allowed) {
+      if (b[k] !== undefined) payload[k] = b[k]
+    }
+    if (logoUrl !== undefined) {
+      payload.initial_bg = logoUrl || payload.initial_bg || '#1b1c18'
+    }
+    if (jobType !== undefined) {
+      payload.badges = [jobType]
+    }
+
+    try {
+      const { data, error } = await supabase.from('experiences').update(payload).eq('id', id).select().single()
+      if (!error && data) {
+        return {
+          ...data,
+          logo: logoUrl || (data.initial_bg && (data.initial_bg.startsWith('http') || data.initial_bg.startsWith('/uploads')) ? data.initial_bg : ''),
+          job_type: jobType || (Array.isArray(data.badges) && data.badges[0]) || 'Full-time'
+        }
+      }
+      if (error) console.warn('[Supabase updateExperience error]', error.message)
+    } catch (err) {
+      console.warn('[Supabase updateExperience exception]', err.message)
+    } 
+    if (local.experiences) {
+      const idx = local.experiences.findIndex((e) => String(e.id) === String(id))
+      if (idx !== -1) {
+        local.experiences[idx] = {
+          ...local.experiences[idx],
+          ...payload,
+          ...(logoUrl !== undefined ? { logo: logoUrl } : {}),
+          ...(jobType !== undefined ? { job_type: jobType } : {})
+        }
+        db.saveLocalData(local)
+        return local.experiences[idx]
+      }
+    }
+    return null
+  },
+
+  deleteExperience: async (id) => {
+    try {
+      await supabase.from('experiences').delete().eq('id', id)
+    } catch {}
+    const local = db.getLocalData()
+    if (local.experiences) {
+      local.experiences = local.experiences.filter((e) => String(e.id) !== String(id))
+      db.saveLocalData(local)
+    }
+    return true
+  },
+
+  // ---------- Music ----------
+  getMusic: async () => {
+    const mapAlbum = (a) => ({
+      ...a,
+      image: a.image || a.cover || (a.gradient && (a.gradient.startsWith('http') || a.gradient.startsWith('/uploads')) ? a.gradient : null)
+    })
+    try {
+      const { data, error } = await supabase.from('music').select('*').order('order_index', { ascending: true })
+      if (!error && Array.isArray(data) && data.length > 0) {
+        const local = db.getLocalData()
+        return {
+          total_albums: data.length,
+          current_status: local.music?.current_status || 'playing • 1.0x',
+          albums: data.map(mapAlbum),
+          moods: local.music?.moods || {}
+        }
+      }
+    } catch (err) {
+      console.warn('[Supabase Music Notice]', err.message)
+    }
+    const local = db.getLocalData()
+    const fallbackAlbums = (local.music?.albums || []).map(mapAlbum)
+    return {
+      total_albums: fallbackAlbums.length,
+      current_status: local.music?.current_status || 'playing • 1.0x',
+      albums: fallbackAlbums,
+      moods: local.music?.moods || {}
+    }
+  },
+
+  updateMusicAlbum: async (id, b) => {
+    const local = db.getLocalData()
+    const imgUrl = b.image !== undefined ? (b.image || b.cover || '') : undefined
+    const payload = { ...b }
+    if (imgUrl !== undefined) {
+      payload.gradient = imgUrl || payload.gradient || 'linear-gradient(135deg, #1f2937, #111827)'
+    }
+    delete payload.image
+    delete payload.cover
+
+    try {
+      const { data, error } = await supabase.from('music').update(payload).eq('id', id).select().single()
+      if (!error && data) {
+        return {
+          ...data,
+          image: imgUrl || (data.gradient && (data.gradient.startsWith('http') || data.gradient.startsWith('/uploads')) ? data.gradient : null)
+        }
+      }
+    } catch {}
+    if (local.music?.albums) {
+      const idx = local.music.albums.findIndex((a) => String(a.id) === String(id))
+      if (idx !== -1) {
+        local.music.albums[idx] = { ...local.music.albums[idx], ...b, ...(imgUrl !== undefined ? { image: imgUrl } : {}) }
+        db.saveLocalData(local)
+        return local.music.albums[idx]
+      }
+    }
+    return null
+  },
+
+  createMusicAlbum: async (b) => {
+    const local = db.getLocalData()
+    const imgUrl = b.image || b.cover || ''
+    const newAlbum = {
+      id: Date.now(),
+      title: b.title || '',
+      artist: b.artist || '',
+      year: b.year || new Date().getFullYear().toString(),
+      genre: b.genre || '',
+      tag: b.tag || '',
+      note: b.note || '',
+      progress: Number(b.progress) || 50,
+      time: b.time || '02:00 / 04:00',
+      initial: b.initial || (b.artist ? b.artist.slice(0, 2).toUpperCase() : 'MU'),
+      gradient: imgUrl || b.gradient || 'linear-gradient(135deg, #1f2937, #111827)',
+      row_index: Number(b.row || b.row_index) || 1,
+      order_index: Number(b.order_index) || 0,
+      published: true
+    }
+    try {
+      const { data, error } = await supabase.from('music').insert(newAlbum).select().single()
+      if (!error && data) return { ...data, image: imgUrl }
+    } catch {}
+    if (!local.music) local.music = { albums: [] }
+    if (!local.music.albums) local.music.albums = []
+    const withImage = { ...newAlbum, image: imgUrl }
+    local.music.albums.push(withImage)
+    db.saveLocalData(local)
+    return withImage
+  },
+
+  deleteMusicAlbum: async (id) => {
+    try {
+      await supabase.from('music').delete().eq('id', id)
+    } catch {}
+    const local = db.getLocalData()
+    if (local.music?.albums) {
+      local.music.albums = local.music.albums.filter((a) => String(a.id) !== String(id))
+      db.saveLocalData(local)
+    }
+    return true
+  },
+
+  // ---------- 2021 Tiguan ----------
+  getTiguan: async () => {
+    try {
+      const { data, error } = await supabase.from('tiguan').select('*').limit(1).maybeSingle()
+      if (!error && data) {
+        return data
+      }
+    } catch (err) {
+      console.warn('[Supabase Tiguan Notice]', err.message)
+    }
+    const local = db.getLocalData()
+    return local.tiguan || {}
+  },
+
+  updateTiguan: async (b) => {
+    const local = db.getLocalData()
+    try {
+      const { data: cur } = await supabase.from('tiguan').select('id').limit(1).maybeSingle()
+      if (cur) {
+        const { data, error } = await supabase.from('tiguan').update(b).eq('id', cur.id).select().single()
+        if (!error && data) return data
+      } else {
+        const { data, error } = await supabase.from('tiguan').insert({ id: 1, ...b }).select().single()
+        if (!error && data) return data
+      }
+    } catch {}
+    local.tiguan = { ...(local.tiguan || {}), ...b }
+    db.saveLocalData(local)
+    return local.tiguan
+  },
+
+  // ---------- Friends & Film ----------
+  getFriends: async () => {
+    try {
+      const { data, error } = await supabase.from('friends').select('*').order('order_index', { ascending: true })
+      if (!error && Array.isArray(data) && data.length > 0) {
+        const local = db.getLocalData()
+        return {
+          title: local.friends?.title || 'friends & film',
+          subtitle: local.friends?.subtitle || 'good people, roadtrips, and late diner coffee',
+          photos: data
+        }
+      }
+    } catch (err) {
+      console.warn('[Supabase Friends Notice]', err.message)
+    }
+    const local = db.getLocalData()
+    return local.friends || { title: 'friends & film', subtitle: 'good people, roadtrips, and late diner coffee', photos: [] }
+  },
+
+  createFriendsPhoto: async (b) => {
+    const local = db.getLocalData()
+    const newPhoto = {
+      id: Date.now(),
+      url: b.url || '',
+      title: b.title || '',
+      meta: b.meta || '',
+      order_index: Number(b.order_index) || 0,
+      published: true
+    }
+    try {
+      const { data, error } = await supabase.from('friends').insert(newPhoto).select().single()
+      if (!error && data) return data
+    } catch {}
+    if (!local.friends) local.friends = { title: 'friends & film', subtitle: 'good people, roadtrips, and late diner coffee', photos: [] }
+    local.friends.photos.push(newPhoto)
+    db.saveLocalData(local)
+    return newPhoto
+  },
+
+  updateFriendsPhoto: async (id, b) => {
+    const local = db.getLocalData()
+    try {
+      const { data, error } = await supabase.from('friends').update(b).eq('id', id).select().single()
+      if (!error && data) return data
+    } catch {}
+    if (local.friends?.photos) {
+      const idx = local.friends.photos.findIndex((p) => String(p.id) === String(id))
+      if (idx !== -1) {
+        local.friends.photos[idx] = { ...local.friends.photos[idx], ...b }
+        db.saveLocalData(local)
+        return local.friends.photos[idx]
+      }
+    }
+    return null
+  },
+
+  deleteFriendsPhoto: async (id) => {
+    try {
+      await supabase.from('friends').delete().eq('id', id)
+    } catch {}
+    const local = db.getLocalData()
+    if (local.friends?.photos) {
+      local.friends.photos = local.friends.photos.filter((p) => String(p.id) !== String(id))
+      db.saveLocalData(local)
+    }
+    return true
+  },
+
+  // ---------- Cat (Mochi) ----------
+  getCat: async () => {
+    try {
+      const { data, error } = await supabase.from('cat').select('*').limit(1).maybeSingle()
+      if (!error && data) {
+        const local = db.getLocalData()
+        return {
+          ...data,
+          purr_messages: local.cat?.purr_messages || []
+        }
+      }
+    } catch (err) {
+      console.warn('[Supabase Cat Notice]', err.message)
+    }
+    const local = db.getLocalData()
+    return local.cat || { name: 'Mochi', role: 'Chief QA & Keyboard Blocker', pats: 0, photos: [], purr_messages: [] }
+  },
+
+  patCat: async () => {
+    const local = db.getLocalData()
+    let currentPats = Number(local.cat?.pats) || 0
+    currentPats += 1
+    if (local.cat) local.cat.pats = currentPats
+    db.saveLocalData(local)
+
+    try {
+      const { data: cur } = await supabase.from('cat').select('id, pats').limit(1).maybeSingle()
+      if (cur) {
+        await supabase.from('cat').update({ pats: (cur.pats || 0) + 1 }).eq('id', cur.id)
+      }
+    } catch {}
+
+    const msgs = local.cat?.purr_messages || [
+      '// status: purring softly at 432 Hz',
+      '// status: kneading the ergonomic keyboard',
+      '// status: happy blink received ^_^',
+      '// status: headbutting terminal cursor'
+    ]
+    const message = msgs[(currentPats - 1) % msgs.length]
+
+    return {
+      pats: currentPats,
+      status_message: message + ' (total pats: ' + currentPats + ')'
+    }
+  },
+
+  updateCat: async (b) => {
+    const local = db.getLocalData()
+    try {
+      const { data: cur } = await supabase.from('cat').select('id').limit(1).maybeSingle()
+      if (cur) {
+        const { data, error } = await supabase.from('cat').update(b).eq('id', cur.id).select().single()
+        if (!error && data) return data
+      } else {
+        const { data, error } = await supabase.from('cat').insert({ id: 1, ...b }).select().single()
+        if (!error && data) return data
+      }
+    } catch {}
+    local.cat = { ...(local.cat || {}), ...b }
+    db.saveLocalData(local)
+    return local.cat
+  },
+
+  // ---------- Full Aggregated Data for SSR ----------
+  getFullPortfolio: async () => {
+    const [profile, bio, projects, experiences, music, tiguan, friends, cat] = await Promise.all([
+      db.getProfile().catch(() => null),
+      db.getBio().catch(() => null),
+      db.getProjects(true).catch(() => []),
+      db.getExperiences(true).catch(() => []),
+      db.getMusic().catch(() => ({})),
+      db.getTiguan().catch(() => ({})),
+      db.getFriends().catch(() => ({})),
+      db.getCat().catch(() => ({}))
+    ])
+
+    const local = db.getLocalData()
+    return {
+      profile: profile || local.profile,
+      bio: bio || local.bio,
+      projects: Array.isArray(projects) ? projects : (local.projects || []),
+      experiences: Array.isArray(experiences) ? experiences : (local.experiences || []),
+      music: (music && music.albums && music.albums.length > 0) ? music : local.music,
+      tiguan: (tiguan && tiguan.photos && tiguan.photos.length > 0) ? tiguan : local.tiguan,
+      friends: (friends && friends.photos && friends.photos.length > 0) ? friends : local.friends,
+      cat: (cat && cat.photos && cat.photos.length > 0) ? cat : local.cat,
+      dbMode: db.getMode(),
+      timestamp: new Date().toISOString()
+    }
   }
 }

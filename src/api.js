@@ -4,16 +4,24 @@ const parse = async (res) => {
   return data
 }
 
-const call = (url, method = 'GET', body) => {
+const call = async (url, method = 'GET', body) => {
   const token = localStorage.getItem('token')
-  return fetch(url, {
-    method,
-    headers: {
-      ...(body ? { 'Content-Type': 'application/json' } : {}),
-      ...(token ? { Authorization: `Bearer ${token}` } : {})
-    },
-    body: body ? JSON.stringify(body) : undefined
-  }).then(parse)
+  try {
+    const res = await fetch(url, {
+      method,
+      headers: {
+        ...(body ? { 'Content-Type': 'application/json' } : {}),
+        ...(token ? { Authorization: `Bearer ${token}` } : {})
+      },
+      body: body ? JSON.stringify(body) : undefined
+    })
+    return await parse(res)
+  } catch (err) {
+    if (err.message && (err.message.includes('fetch') || err.message.includes('NetworkError') || err.message.includes('Failed to fetch') || err.message.includes('500'))) {
+      throw new Error('API server (port 4000) is unreachable. Run "npm run dev" to ensure both frontend and backend are active.')
+    }
+    throw err
+  }
 }
 
 export const api = {
@@ -25,6 +33,8 @@ export const api = {
   authSaveToken: (t) => localStorage.setItem('token', t),
   authResetLocal: (d) => call('/api/auth/reset-local', 'POST', d),
   updateAccount: (d) => call('/api/auth/account', 'PUT', d),
+
+  portfolioFull: () => call('/api/portfolio-full'),
 
   profile: () => call('/api/profile'),
   gallery: () => call('/api/gallery'),
@@ -44,27 +54,33 @@ export const api = {
     }).then(parse)
   },
 
+  experiences: (scope = 'published') => call(`/api/experiences${scope === 'all' ? '?all=1' : ''}`),
+  createExperience: (d) => call('/api/experiences', 'POST', d),
+  updateExperience: (id, d) => call(`/api/experiences/${id}`, 'PUT', d),
+  deleteExperience: (id) => call(`/api/experiences/${id}`, 'DELETE'),
+
   projects: (scope = 'published') => call(`/api/projects${scope === 'all' ? '?all=1' : ''}`),
   project: (id) => call(`/api/projects/${id}`),
   createProject: (d) => call('/api/projects', 'POST', d),
   updateProject: (id, d) => call(`/api/projects/${id}`, 'PUT', d),
   deleteProject: (id) => call(`/api/projects/${id}`, 'DELETE'),
 
-  threads: (scope = 'published') => call(`/api/threads${scope === 'all' ? '?all=1' : ''}`),
-  thread: (id) => call(`/api/threads/${id}`),
-  createThread: (d) => call('/api/threads', 'POST', d),
-  updateThread: (id, d) => call(`/api/threads/${id}`, 'PUT', d),
-  deleteThread: (id) => call(`/api/threads/${id}`, 'DELETE'),
+  music: () => call('/api/music'),
+  createMusicAlbum: (d) => call('/api/music', 'POST', d),
+  updateMusicAlbum: (id, d) => call(`/api/music/${id}`, 'PUT', d),
+  deleteMusicAlbum: (id) => call(`/api/music/${id}`, 'DELETE'),
 
-  services: (scope = 'published') => call(`/api/services${scope === 'all' ? '?all=1' : ''}`),
-  createService: (d) => call('/api/services', 'POST', d),
-  updateService: (id, d) => call(`/api/services/${id}`, 'PUT', d),
-  deleteService: (id) => call(`/api/services/${id}`, 'DELETE'),
+  tiguan: () => call('/api/tiguan'),
+  updateTiguan: (d) => call('/api/tiguan', 'PUT', d),
 
-  awards: (scope = 'published') => call(`/api/awards${scope === 'all' ? '?all=1' : ''}`),
-  createAward: (d) => call('/api/awards', 'POST', d),
-  updateAward: (id, d) => call(`/api/awards/${id}`, 'PUT', d),
-  deleteAward: (id) => call(`/api/awards/${id}`, 'DELETE'),
+  friends: () => call('/api/friends'),
+  createFriendsPhoto: (d) => call('/api/friends', 'POST', d),
+  updateFriendsPhoto: (id, d) => call(`/api/friends/${id}`, 'PUT', d),
+  deleteFriendsPhoto: (id) => call(`/api/friends/${id}`, 'DELETE'),
+
+  cat: () => call('/api/cat'),
+  updateCat: (d) => call('/api/cat', 'PUT', d),
+  patCat: () => call('/api/cat/pat', 'POST'),
 
   pictures: (scope = 'published') => call(`/api/pictures${scope === 'all' ? '?all=1' : ''}`),
   picture: (name) => call(`/api/pictures/${encodeURIComponent(name)}`),
