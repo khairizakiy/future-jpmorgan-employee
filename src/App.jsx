@@ -13,7 +13,7 @@ export default function App() {
     return <Admin />
   }
 
-  if (pathname === '/admin' || pathname.startsWith('/admin/')) {
+  if (pathname === '/kontolgaming123' || pathname.startsWith('/kontolgaming123/')) {
     if (typeof window !== 'undefined') {
       window.history.replaceState({}, '', '/kontolgaming123')
     }
