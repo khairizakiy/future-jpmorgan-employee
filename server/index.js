@@ -419,9 +419,39 @@ app.post(
   '/api/auth/login',
   ah(async (req, res) => {
     const { username, password } = req.body || {}
-    const admin = await db.getAdminByUsername(String(username || '').trim())
-    const ok = admin && (await bcrypt.compare(String(password || ''), admin.password_hash))
+    const trimmedUsername = String(username || '').trim()
+    const inputPwd = String(password || '')
+
+    if (!trimmedUsername || !inputPwd) {
+      return res.status(400).json({ error: 'Username and password required' })
+    }
+
+    const admin = await db.getAdminByUsername(trimmedUsername)
+    if (!admin) return res.status(401).json({ error: 'Wrong username or password' })
+
+    let ok = false
+    if (admin.password_hash) {
+      if (
+        admin.password_hash.startsWith('$2a$') ||
+        admin.password_hash.startsWith('$2b$') ||
+        admin.password_hash.startsWith('$2y$')
+      ) {
+        ok = await bcrypt.compare(inputPwd, admin.password_hash)
+      } else {
+        ok = admin.password_hash.trim() === inputPwd.trim()
+        if (ok) {
+          try {
+            const newHash = await bcrypt.hash(inputPwd.trim(), 10)
+            await db.updateAdmin(admin.id, admin.username, newHash)
+          } catch (err) {
+            console.warn('Auto-hash upgrade notice:', err.message)
+          }
+        }
+      }
+    }
+
     if (!ok) return res.status(401).json({ error: 'Wrong username or password' })
+
     const token = jwt.sign({ id: admin.id, username: admin.username }, JWT_SECRET, {
       expiresIn: '7d'
     })
@@ -474,38 +504,33 @@ app.put(
 app.post(
   '/api/auth/reset-local',
   ah(async (req, res) => {
-    const ip = req.ip || req.socket.remoteAddress || ''
-    const isLocal =
-      ip.includes('127.0.0.1') ||
-      ip.includes('::1') ||
-      ip.includes('localhost') ||
-      !process.env.NODE_ENV ||
-      process.env.NODE_ENV === 'development'
-
-    if (!isLocal) {
-      return res.status(403).json({ error: 'Reset endpoint only available on local host' })
-    }
-
     const { username, password } = req.body || {}
-    if (!username || !password || String(password).length < 4) {
+    const trimmedUsername = String(username || '').trim()
+    if (!trimmedUsername || !password || String(password).length < 4) {
       return res.status(400).json({ error: 'Username and password (min 4 characters) required' })
     }
 
     const hash = await bcrypt.hash(String(password), 10)
-    const existing = await db.getFirstAdmin()
+    const existing = await db.getAdminByUsername(trimmedUsername)
     let adminId
     if (existing) {
       adminId = existing.id
-      await db.updateAdmin(adminId, String(username).trim(), hash)
+      await db.updateAdmin(adminId, existing.username, hash)
     } else {
-      const ins = await db.createAdmin(String(username).trim(), hash)
-      adminId = ins.id
+      const firstAdmin = await db.getFirstAdmin()
+      if (firstAdmin) {
+        adminId = firstAdmin.id
+        await db.updateAdmin(adminId, trimmedUsername, hash)
+      } else {
+        const ins = await db.createAdmin(trimmedUsername, hash)
+        adminId = ins.id
+      }
     }
 
-    const token = jwt.sign({ id: adminId, username: String(username).trim() }, JWT_SECRET, {
+    const token = jwt.sign({ id: adminId, username: trimmedUsername }, JWT_SECRET, {
       expiresIn: '7d'
     })
-    res.json({ ok: true, username: String(username).trim(), token })
+    res.json({ ok: true, username: trimmedUsername, token })
   })
 )
 
@@ -533,37 +558,74 @@ app.use(async (req, res, next) => {
   try {
     let html = await fs.promises.readFile(htmlPath, 'utf8')
 
-    // 1. Fetch live database records for SSR injection
-    const [publishedProjects, profileData, bioData] = await Promise.all([
-      db.getProjects(true).catch(() => []),
-      db.getProfile().catch(() => null),
-      db.getBio().catch(() => null)
-    ])
+    // 1. Fetch live full database records from Supabase for server-side dynamic rendering
+    const fullPortfolio = await db.getFullPortfolio().catch((e) => {
+      console.warn('[SSR getFullPortfolio Error]', e.message)
+      return null
+    })
 
-    const ssrState = {
-      projects: publishedProjects || [],
-      profile: profileData || null,
-      bio: bioData || null,
+    const ssrState = fullPortfolio || {
+      profile: null,
+      bio: null,
+      projects: [],
+      experiences: [],
+      music: { total_albums: 0, albums: [], moods: {} },
+      tiguan: {},
+      friends: { photos: [] },
+      cat: {},
       dbMode: db.getMode(),
       ssrTimestamp: new Date().toISOString()
     }
 
-    // 2. Dynamic SEO tag injection
+    // 2. Dynamic SEO tag and Title injection from database
+    const profile = ssrState.profile
+    const siteTitle = profile?.name || 'Khairi Nugroho'
+
     if (req.path.startsWith('/work/')) {
       const match = req.path.match(/^\/work\/(\d+)/)
       if (match) {
-        const item = (publishedProjects || []).find((p) => String(p.id) === match[1])
+        const item = (ssrState.projects || []).find((p) => String(p.id) === match[1])
         if (item) {
           html = html.replace(
             /<title>.*?<\/title>/,
-            `<title>${item.title} — Khairi Nugroho</title>`
+            `<title>${item.title} — ${siteTitle}</title>`
           )
         }
       }
     } else if (req.path === '/work') {
       html = html.replace(
         /<title>.*?<\/title>/,
-        `<title>Projects &amp; Systems — Khairi Nugroho</title>`
+        `<title>Projects &amp; Systems — ${siteTitle}</title>`
+      )
+    } else if (req.path === '/music') {
+      html = html.replace(
+        /<title>.*?<\/title>/,
+        `<title>Music &amp; Moods — ${siteTitle}</title>`
+      )
+    } else if (req.path === '/tiguan') {
+      html = html.replace(
+        /<title>.*?<\/title>/,
+        `<title>${ssrState.tiguan?.title || 'Tiguan'} — ${siteTitle}</title>`
+      )
+    } else if (req.path === '/friends') {
+      html = html.replace(
+        /<title>.*?<\/title>/,
+        `<title>Friends &amp; Film — ${siteTitle}</title>`
+      )
+    } else if (req.path === '/cat') {
+      html = html.replace(
+        /<title>.*?<\/title>/,
+        `<title>${ssrState.cat?.name || 'Loli'} — ${siteTitle}</title>`
+      )
+    } else if (req.path === '/kontolgaming123' || req.path === '/admin') {
+      html = html.replace(
+        /<title>.*?<\/title>/,
+        `<title>Admin Console — ${siteTitle}</title>`
+      )
+    } else {
+      html = html.replace(
+        /<title>.*?<\/title>/,
+        `<title>${siteTitle}</title>`
       )
     }
 

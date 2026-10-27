@@ -9,7 +9,14 @@ import Admin from './pages/Admin.jsx'
 export default function App() {
   const { pathname } = useRouter()
 
+  if (pathname === '/kontolgaming123' || pathname.startsWith('/kontolgaming123/')) {
+    return <Admin />
+  }
+
   if (pathname === '/admin' || pathname.startsWith('/admin/')) {
+    if (typeof window !== 'undefined') {
+      window.history.replaceState({}, '', '/kontolgaming123')
+    }
     return <Admin />
   }
 

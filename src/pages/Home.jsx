@@ -168,11 +168,11 @@ export default function Home() {
   const customBio = [profile.who_am_i, profile.what_i_did, profile.school].filter(Boolean)
   const bioParagraphs = customBio.length > 0
     ? customBio
-    : data?.bio?.paragraphs || [
-        "Hi! I'm Khairi, a systems architect and software engineer based in Batam.",
-        "Most of my time goes into distributed backends, clean type-safe frontend architecture (TypeScript + Rust), and building tools that run fast without useless computational bloat.",
-        "When I'm not pushing commits, I'm usually underneath the chassis of my 2021 VW Tiguan doing suspension tweaks, hunting for obscure vinyl records, or hanging out with my cat Mochi."
-      ]
+    : (Array.isArray(data?.bio?.paragraphs) && data.bio.paragraphs.length > 0)
+      ? data.bio.paragraphs
+      : (data?.bio?.content
+        ? data.bio.content.split('\n\n').map((s) => s.trim()).filter(Boolean)
+        : [data?.bio?.paragraph_1, data?.bio?.paragraph_2].filter(Boolean))
 
   const experiences = Array.isArray(data?.experiences) ? data.experiences : []
   const projects = Array.isArray(data?.projects) ? data.projects : []
@@ -426,9 +426,9 @@ export default function Home() {
             <span className="text-terminal-prompt">•</span>
             <a
               className="text-accent-link underline hover:text-[#005582]"
-              href={`mailto:${profile.email || 'khairizakiyn@gmail.com'}`}
+              href={`mailto:${profile.email || 'khairizakiyn@gmail.com'}?subject=${encodeURIComponent("Let's Connect")}&body=${encodeURIComponent("Hey Nugroho! ...")}`}
             >
-              Email
+              Gmail
             </a>
             <span className="text-on-surface-variant font-sans text-[11px]">
               ({profile.email || 'khairizakiyn@gmail.com'})

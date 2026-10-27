@@ -75,24 +75,44 @@ const DEFAULT_BIO = {
 const DEFAULT_MOODS = {
   'lock-in': {
     title: 'Lock In',
-    headliners: 'Aphex Twin, Floating Points',
-    description: 'Polyrhythms and high-tempo modular synthesis for deep flow states. Also listening to: Four Tet, Jon Hopkins, Bicep, Overmono.'
+    artists: 'Aphex Twin, Floating Points, Four Tet, Jon Hopkins, Bicep, Overmono'
   },
   'study': {
     title: 'Study',
-    headliners: 'Nils Frahm, Brian Eno',
-    description: 'Tactile felt piano, tape echoes, spatial acoustics. Also listening to: Harold Budd, Max Richter, Hania Rani.'
+    artists: 'Nils Frahm, Brian Eno, Harold Budd, Max Richter, Hania Rani'
   },
   'game': {
     title: 'Game',
-    headliners: 'Disasterpeace, Mick Gordon',
-    description: 'Chiptune architecture and sub-octave drive. Also listening to: Lena Raine, Darren Korb, HEALTH.'
+    artists: 'Disasterpeace, Mick Gordon, Lena Raine, Darren Korb, HEALTH'
   },
   'drive': {
     title: 'Night Drive',
-    headliners: 'Deftones, Kavinsky',
-    description: 'Low-end punch through the Tiguan’s subwoofer on coastal 101. Also listening to: Gunship, The Midnight, Chromatics.'
+    artists: 'Deftones, Kavinsky, Gunship, The Midnight, Chromatics'
   }
+}
+
+function normalizeMoods(raw) {
+  if (!raw || typeof raw !== 'object') return { ...DEFAULT_MOODS }
+  const res = {}
+  for (const [key, val] of Object.entries(raw)) {
+    if (!val || typeof val !== 'object') continue
+    let artists = val.artists || ''
+    if (!artists) {
+      if (val.headliners && val.description) {
+        const also = val.description.includes('Also listening to:')
+          ? val.description.split('Also listening to:')[1].replace(/\.$/, '').trim()
+          : ''
+        artists = [val.headliners, also].filter(Boolean).join(', ')
+      } else {
+        artists = val.headliners || val.description || ''
+      }
+    }
+    res[key] = {
+      title: val.title || key,
+      artists
+    }
+  }
+  return Object.keys(res).length > 0 ? res : { ...DEFAULT_MOODS }
 }
 
 function extractMoods(records) {
@@ -101,7 +121,7 @@ function extractMoods(records) {
     try {
       const parsed = JSON.parse(moodRow.note)
       if (parsed && typeof parsed === 'object' && Object.keys(parsed).length > 0) {
-        return parsed
+        return normalizeMoods(parsed)
       }
     } catch (e) {
       console.warn('Failed to parse moods JSON:', e)
@@ -570,7 +590,7 @@ export async function onRequest(context) {
           try {
             const parsed = JSON.parse(data.note)
             if (parsed && typeof parsed === 'object' && Object.keys(parsed).length > 0) {
-              moods = parsed
+              moods = normalizeMoods(parsed)
             }
           } catch {}
         }
@@ -944,13 +964,40 @@ export async function onRequest(context) {
 
     if (pathname === '/api/auth/login' && method === 'POST') {
       const { username, password } = await request.json().catch(() => ({}))
+      const trimmedUsername = String(username || '').trim()
+      const inputPwd = String(password || '')
+
+      if (!trimmedUsername || !inputPwd) {
+        return json({ error: 'Username and password required' }, 400)
+      }
+
       const { data: admin } = await supabase
         .from('admin_users')
         .select('*')
-        .eq('username', String(username || '').trim())
+        .ilike('username', trimmedUsername)
         .maybeSingle()
 
-      const ok = admin && (await bcrypt.compare(String(password || ''), admin.password_hash))
+      if (!admin) return json({ error: 'Wrong username or password' }, 401)
+
+      let ok = false
+      if (admin.password_hash) {
+        if (
+          admin.password_hash.startsWith('$2a$') ||
+          admin.password_hash.startsWith('$2b$') ||
+          admin.password_hash.startsWith('$2y$')
+        ) {
+          ok = await bcrypt.compare(inputPwd, admin.password_hash)
+        } else {
+          ok = admin.password_hash.trim() === inputPwd.trim()
+          if (ok) {
+            try {
+              const newHash = await bcrypt.hash(inputPwd.trim(), 10)
+              await supabase.from('admin_users').update({ password_hash: newHash }).eq('id', admin.id)
+            } catch {}
+          }
+        }
+      }
+
       if (!ok) return json({ error: 'Wrong username or password' }, 401)
 
       const token = jwt.sign({ id: admin.id, username: admin.username }, jwtSecret, {
@@ -1011,30 +1058,42 @@ export async function onRequest(context) {
 
     if (pathname === '/api/auth/reset-local' && method === 'POST') {
       const { username, password } = await request.json().catch(() => ({}))
-      if (!username || !password || String(password).length < 4) {
+      const trimmed = String(username || '').trim()
+      if (!trimmed || !password || String(password).length < 4) {
         return json({ error: 'Username and password (min 4 characters) required' }, 400)
       }
       const hash = await bcrypt.hash(String(password), 10)
       const { data: existing } = await supabase
         .from('admin_users')
         .select('*')
-        .order('id', { ascending: true })
-        .limit(1)
+        .ilike('username', trimmed)
         .maybeSingle()
 
       let adminId
       if (existing) {
         adminId = existing.id
-        await supabase.from('admin_users').update({ username: String(username).trim(), password_hash: hash }).eq('id', adminId)
+        await supabase.from('admin_users').update({ password_hash: hash }).eq('id', adminId)
       } else {
-        const { data: ins } = await supabase.from('admin_users').insert({ username: String(username).trim(), password_hash: hash }).select().single()
-        adminId = ins?.id
+        const { data: firstAdmin } = await supabase
+          .from('admin_users')
+          .select('*')
+          .order('id', { ascending: true })
+          .limit(1)
+          .maybeSingle()
+
+        if (firstAdmin) {
+          adminId = firstAdmin.id
+          await supabase.from('admin_users').update({ username: trimmed, password_hash: hash }).eq('id', adminId)
+        } else {
+          const { data: ins } = await supabase.from('admin_users').insert({ username: trimmed, password_hash: hash }).select().single()
+          adminId = ins?.id
+        }
       }
 
-      const token = jwt.sign({ id: adminId, username: String(username).trim() }, jwtSecret, {
+      const token = jwt.sign({ id: adminId, username: trimmed }, jwtSecret, {
         expiresIn: '7d'
       })
-      return json({ ok: true, username: String(username).trim(), token })
+      return json({ ok: true, username: trimmed, token })
     }
 
     return json({ error: 'API route not found' }, 404)

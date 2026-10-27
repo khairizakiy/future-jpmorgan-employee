@@ -26,10 +26,10 @@ function AlbumCover({ album, className = 'w-10 h-10', textClass = 'text-[11px]' 
 }
 
 const DEFAULT_MOODS = {
-  'lock-in': { title: 'Lock In', headliners: 'Aphex Twin, Floating Points', description: 'Polyrhythms and high-tempo modular synthesis for deep flow states. Also listening to: Four Tet, Jon Hopkins, Bicep, Overmono.' },
-  'study': { title: 'Study', headliners: 'Nils Frahm, Brian Eno', description: 'Tactile felt piano, tape echoes, spatial acoustics. Also listening to: Harold Budd, Max Richter, Hania Rani.' },
-  'game': { title: 'Game', headliners: 'Disasterpeace, Mick Gordon', description: 'Chiptune architecture and sub-octave drive. Also listening to: Lena Raine, Darren Korb, HEALTH.' },
-  'drive': { title: 'Night Drive', headliners: 'Deftones, Kavinsky', description: 'Low-end punch through the Tiguan’s subwoofer on coastal 101. Also listening to: Gunship, The Midnight, Chromatics.' }
+  'lock-in': { title: 'Lock In', artists: 'Aphex Twin, Floating Points, Four Tet, Jon Hopkins, Bicep, Overmono' },
+  'study': { title: 'Study', artists: 'Nils Frahm, Brian Eno, Harold Budd, Max Richter, Hania Rani' },
+  'game': { title: 'Game', artists: 'Disasterpeace, Mick Gordon, Lena Raine, Darren Korb, HEALTH' },
+  'drive': { title: 'Night Drive', artists: 'Deftones, Kavinsky, Gunship, The Midnight, Chromatics' }
 }
 
 export default function MusicPage() {
@@ -471,17 +471,9 @@ export default function MusicPage() {
           </div>
 
           {activeMoodItem && (
-            <div className="text-xs space-y-1">
-              {activeMoodItem.headliners && (
-                <div className="font-mono text-terminal-prompt">
-                  &gt; Headliners: <b>{activeMoodItem.headliners}</b>
-                </div>
-              )}
-              {activeMoodItem.description && (
-                <div className="text-on-surface-variant">
-                  {activeMoodItem.description}
-                </div>
-              )}
+            <div className="text-xs font-mono text-on-surface leading-relaxed">
+              <span className="text-terminal-prompt mr-1.5 font-bold">&gt;</span>
+              {activeMoodItem.artists || activeMoodItem.headliners || ''}
             </div>
           )}
         </div>

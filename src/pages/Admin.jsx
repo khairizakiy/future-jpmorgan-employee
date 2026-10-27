@@ -69,19 +69,19 @@ export default function Admin() {
   // SECTION 1: WHOAMI (Profile & Bio)
   // ----------------------------------------------------
   const [profile, setProfile] = useState({
-    name: 'Khairi Nugroho',
-    hero: 'batam, id',
-    who_am_i: "Hi! I'm Khairi, a systems architect and software engineer based in Batam.",
-    what_i_did: 'Most of my time goes into distributed backends, clean type-safe frontend architecture (TypeScript + Rust), and building tools that run fast without useless computational bloat.',
-    school: "When I'm not pushing commits, I'm usually underneath the chassis of my 2021 VW Tiguan doing suspension tweaks, hunting for obscure vinyl records, or hanging out with my cat Mochi.",
+    name: '',
+    hero: '',
+    who_am_i: '',
+    what_i_did: '',
+    school: '',
     photo: '',
-    photo_label: 'khairinugroho.jpeg',
-    email: 'khairizakiyn@gmail.com',
-    linkedin_url: 'https://linkedin.com/khairinugroho',
-    github_url: 'https://github.com/khairizakiy',
-    instagram_url: 'https://instagram.com/zkiyngrh',
-    spotify_url: 'https://open.spotify.com/user/j45vdoajmtkvdq33tunybf9o6?si=3163aa858f2341ab',
-    motto: 'Precision is quiet; restraint speaks louder than ornamentation.'
+    photo_label: '',
+    email: '',
+    linkedin_url: '',
+    github_url: '',
+    instagram_url: '',
+    spotify_url: '',
+    motto: ''
   })
 
   const [savingProfile, setSavingProfile] = useState(false)
@@ -110,7 +110,7 @@ export default function Admin() {
         content: `${profile.who_am_i}\n\n${profile.what_i_did}\n\n${profile.school}`
       })
 
-      showToast('Profile & Bio updated in Supabase.')
+      showToast('Profile & Bio updated.')
     } catch (err) {
       showToast(err.message || 'Failed to save profile', true)
     } finally {
@@ -198,7 +198,7 @@ export default function Admin() {
   }
 
   const handleExpDelete = async (id) => {
-    if (!window.confirm('Delete this experience from Supabase?')) return
+    if (!window.confirm('Delete this experience?')) return
     try {
       await api.deleteExperience(id)
       setExperiencesList((prev) => prev.filter((exp) => exp.id !== id))
@@ -287,7 +287,7 @@ export default function Admin() {
   }
 
   const handleProjDelete = async (id) => {
-    if (!window.confirm('Delete this project from Supabase?')) return
+    if (!window.confirm('Delete this project?')) return
     try {
       await api.deleteProject(id)
       setProjectsList((prev) => prev.filter((p) => p.id !== id))
@@ -453,7 +453,7 @@ export default function Admin() {
     setSavingMoods(true)
     try {
       await api.updateMusicMoods(moods)
-      showToast('Artists by Mood updated in Supabase.')
+      showToast('Artists by Mood updated.')
     } catch (err) {
       showToast(err.message || 'Failed to save moods', true)
     } finally {
@@ -632,7 +632,7 @@ export default function Admin() {
       if (res.username) setWho(res.username)
       setNewPassword('')
       setConfirmPassword('')
-      showToast('Credentials updated in Supabase.')
+      showToast('Credentials updated successfully.')
     } catch (err) {
       showToast(err.message || 'Failed to update credentials', true)
     } finally {
@@ -790,7 +790,7 @@ export default function Admin() {
   if (authView === 'loading') {
     return (
       <div className="max-w-[760px] mx-auto px-4 py-4">
-        <Header currentPath="/admin" subtitle="content management console • connecting to database…" />
+        <Header currentPath="/kontolgaming123" subtitle="content management console" />
 
         {/* Status bar skeleton */}
         <div className="flex items-center justify-between gap-2 pb-3 mb-4 border-b border-[#c8c6be]">
@@ -807,7 +807,7 @@ export default function Admin() {
 
         {/* Content Box Skeleton */}
         <div className="cmd-box">
-          <div className="cmd-header">database // connecting...</div>
+          <div className="cmd-header">admin // loading...</div>
           <div className="space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1.5">
@@ -843,7 +843,7 @@ export default function Admin() {
   if (authView === 'setup' || authView === 'login') {
     return (
       <div className="max-w-[540px] mx-auto px-4 py-8">
-        <Header currentPath="/admin" subtitle="admin control • authentication gate" />
+        <Header currentPath="/kontolgaming123" subtitle="admin control • authentication gate" />
 
         <div className="cmd-box mt-4">
           <div className="cmd-header">
@@ -854,37 +854,7 @@ export default function Admin() {
                 : 'admin_login.exe'}
           </div>
 
-          {/* Connection Status & Default Credentials Pill */}
-          <div className="mb-4 p-2.5 bg-white border border-[#c8c6be] text-xs font-mono rounded-sm">
-            <div className="flex items-center justify-between gap-2 pb-1.5 border-b border-[#e5e3dc] text-[11px]">
-              <span className="flex items-center gap-1.5 text-emerald-700 font-semibold">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 inline-block"></span>
-                SUPABASE: CONNECTED
-              </span>
-              <span className={`flex items-center gap-1.5 font-semibold ${serverOnline ? 'text-emerald-700' : 'text-red-600'}`}>
-                <span className={`w-1.5 h-1.5 rounded-full ${serverOnline ? 'bg-emerald-600' : 'bg-red-500'} inline-block`}></span>
-                SERVER: {serverOnline ? 'ONLINE (khairi.fun)' : 'OFFLINE'}
-              </span>
-            </div>
-
-            <div className="pt-2 flex items-center justify-between flex-wrap gap-2 text-[11.5px]">
-              <span>
-                Default Login: <strong className="text-black">khairi</strong> / <strong className="text-black">admin123</strong>
-              </span>
-              <button
-                type="button"
-                onClick={() => {
-                  setUsernameInput('khairi')
-                  setPasswordInput('admin123')
-                  setAuthErr('')
-                }}
-                className="link-badge !text-[10px] !bg-[#1b1c18] !text-white !border-[#1b1c18] hover:!bg-[#333]"
-              >
-                [Quick-Fill Credentials]
-              </button>
-            </div>
-          </div>
-
+          {/* Offline server warning */}
           {!serverOnline && (
             <div className="mb-4 p-2.5 bg-red-50 border border-red-300 text-red-800 text-xs font-mono rounded-sm">
               <strong className="block mb-1">⚠️ Server is offline</strong>
@@ -952,7 +922,7 @@ export default function Admin() {
                 className="text-xs font-mono text-terminal-prompt underline hover:text-black"
               >
                 {authMode === 'login'
-                  ? 'Forgot password? Set / Reset locally in Supabase'
+                  ? 'Forgot password? Reset admin credentials'
                   : '← Return to standard login'}
               </button>
             </div>
@@ -990,7 +960,7 @@ export default function Admin() {
       )}
 
       {/* Top Header */}
-      <Header currentPath="/admin" subtitle="content management console • supabase connected" />
+      <Header currentPath="/kontolgaming123" subtitle="content management console" />
 
       {/* System Status Banner */}
       <div className="flex flex-wrap items-center justify-between gap-2 pb-3 mb-4 border-b border-[#c8c6be] text-xs font-mono">
@@ -999,9 +969,6 @@ export default function Admin() {
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 inline-block animate-ping"></span>
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 inline-block -ml-3"></span>
             <span>admin: {who}</span>
-          </span>
-          <span className="text-[11px] text-terminal-prompt hidden sm:inline">
-            supabase://jnttmmhomgtpnkpymhfl
           </span>
         </div>
 
@@ -1240,7 +1207,7 @@ export default function Admin() {
                 className="admin-btn-primary"
                 disabled={savingProfile}
               >
-                {savingProfile ? 'Saving to Supabase…' : 'SAVE WHOAMI PROFILE →'}
+                {savingProfile ? 'Saving…' : 'SAVE WHOAMI PROFILE →'}
               </button>
             </div>
           </form>
@@ -2512,7 +2479,7 @@ export default function Admin() {
                 className="admin-btn-primary"
                 disabled={savingSecurity}
               >
-                {savingSecurity ? 'Updating Supabase…' : 'UPDATE CREDENTIALS →'}
+                {savingSecurity ? 'Updating…' : 'UPDATE CREDENTIALS →'}
               </button>
             </div>
           </form>

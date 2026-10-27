@@ -509,10 +509,11 @@ export const db = {
   },
 
   getAdminByUsername: async (username) => {
+    const trimmed = String(username || '').trim()
     const { data, error } = await supabase
       .from('admin_users')
       .select('*')
-      .eq('username', username)
+      .ilike('username', trimmed)
       .maybeSingle()
     if (error) throw error
     return data
@@ -799,10 +800,30 @@ export const db = {
   // ---------- Music ----------
   getMusic: async () => {
     const DEFAULT_MOODS = {
-      'lock-in': { title: 'Lock In', headliners: 'Aphex Twin, Floating Points', description: 'Polyrhythms and high-tempo modular synthesis for deep flow states. Also listening to: Four Tet, Jon Hopkins, Bicep, Overmono.' },
-      'study': { title: 'Study', headliners: 'Nils Frahm, Brian Eno', description: 'Tactile felt piano, tape echoes, spatial acoustics. Also listening to: Harold Budd, Max Richter, Hania Rani.' },
-      'game': { title: 'Game', headliners: 'Disasterpeace, Mick Gordon', description: 'Chiptune architecture and sub-octave drive. Also listening to: Lena Raine, Darren Korb, HEALTH.' },
-      'drive': { title: 'Night Drive', headliners: 'Deftones, Kavinsky', description: 'Low-end punch through the Tiguan’s subwoofer on coastal 101. Also listening to: Gunship, The Midnight, Chromatics.' }
+      'lock-in': { title: 'Lock In', artists: 'Aphex Twin, Floating Points, Four Tet, Jon Hopkins, Bicep, Overmono' },
+      'study': { title: 'Study', artists: 'Nils Frahm, Brian Eno, Harold Budd, Max Richter, Hania Rani' },
+      'game': { title: 'Game', artists: 'Disasterpeace, Mick Gordon, Lena Raine, Darren Korb, HEALTH' },
+      'drive': { title: 'Night Drive', artists: 'Deftones, Kavinsky, Gunship, The Midnight, Chromatics' }
+    }
+    const normalizeMoods = (raw) => {
+      if (!raw || typeof raw !== 'object') return { ...DEFAULT_MOODS }
+      const res = {}
+      for (const [key, val] of Object.entries(raw)) {
+        if (!val || typeof val !== 'object') continue
+        let artists = val.artists || ''
+        if (!artists) {
+          if (val.headliners && val.description) {
+            const also = val.description.includes('Also listening to:')
+              ? val.description.split('Also listening to:')[1].replace(/\.$/, '').trim()
+              : ''
+            artists = [val.headliners, also].filter(Boolean).join(', ')
+          } else {
+            artists = val.headliners || val.description || ''
+          }
+        }
+        res[key] = { title: val.title || key, artists }
+      }
+      return Object.keys(res).length > 0 ? res : { ...DEFAULT_MOODS }
     }
     const mapAlbum = (a) => ({
       ...a,
@@ -813,11 +834,11 @@ export const db = {
       if (!error && Array.isArray(data) && data.length > 0) {
         const local = db.getLocalData()
         const moodRow = data.find((r) => r.tag === '__MOODS__' || r.title === '__MOODS__')
-        let moods = { ...DEFAULT_MOODS, ...(local.music?.moods || {}) }
+        let moods = normalizeMoods(local.music?.moods)
         if (moodRow && moodRow.note) {
           try {
             const parsed = JSON.parse(moodRow.note)
-            if (parsed && typeof parsed === 'object') moods = parsed
+            if (parsed && typeof parsed === 'object') moods = normalizeMoods(parsed)
           } catch {}
         }
         const albums = data.filter((r) => r.tag !== '__MOODS__' && r.title !== '__MOODS__').map(mapAlbum)
@@ -837,7 +858,7 @@ export const db = {
       total_albums: fallbackAlbums.length,
       current_status: local.music?.current_status || 'playing • 1.0x',
       albums: fallbackAlbums,
-      moods: local.music?.moods || DEFAULT_MOODS
+      moods: normalizeMoods(local.music?.moods)
     }
   },
 
@@ -985,19 +1006,17 @@ export const db = {
   getFriends: async () => {
     try {
       const { data, error } = await supabase.from('friends').select('*').order('order_index', { ascending: true })
-      if (!error && Array.isArray(data) && data.length > 0) {
-        const local = db.getLocalData()
+      if (!error && Array.isArray(data)) {
         return {
-          title: local.friends?.title || 'friends & film',
-          subtitle: local.friends?.subtitle || 'good people, roadtrips, and late diner coffee',
+          title: 'friends & film',
+          subtitle: 'good people, roadtrips, and late diner coffee',
           photos: data
         }
       }
     } catch (err) {
       console.warn('[Supabase Friends Notice]', err.message)
     }
-    const local = db.getLocalData()
-    return local.friends || { title: 'friends & film', subtitle: 'good people, roadtrips, and late diner coffee', photos: [] }
+    return { title: 'friends & film', subtitle: 'good people, roadtrips, and late diner coffee', photos: [] }
   },
 
   createFriendsPhoto: async (b) => {
@@ -1119,22 +1138,21 @@ export const db = {
       db.getBio().catch(() => null),
       db.getProjects(true).catch(() => []),
       db.getExperiences(true).catch(() => []),
-      db.getMusic().catch(() => ({})),
+      db.getMusic().catch(() => ({ total_albums: 0, albums: [], moods: {} })),
       db.getTiguan().catch(() => ({})),
-      db.getFriends().catch(() => ({})),
+      db.getFriends().catch(() => ({ photos: [] })),
       db.getCat().catch(() => ({}))
     ])
 
-    const local = db.getLocalData()
     return {
-      profile: profile || local.profile,
-      bio: bio || local.bio,
-      projects: Array.isArray(projects) ? projects : (local.projects || []),
-      experiences: Array.isArray(experiences) ? experiences : (local.experiences || []),
-      music: (music && music.albums && music.albums.length > 0) ? music : local.music,
-      tiguan: (tiguan && tiguan.photos && tiguan.photos.length > 0) ? tiguan : local.tiguan,
-      friends: (friends && friends.photos && friends.photos.length > 0) ? friends : local.friends,
-      cat: (cat && cat.photos && cat.photos.length > 0) ? cat : local.cat,
+      profile: profile || null,
+      bio: bio || DEFAULT_BIO,
+      projects: Array.isArray(projects) ? projects : [],
+      experiences: Array.isArray(experiences) ? experiences : [],
+      music: music || { total_albums: 0, albums: [], moods: {} },
+      tiguan: tiguan || {},
+      friends: friends || { photos: [] },
+      cat: cat || {},
       dbMode: db.getMode(),
       timestamp: new Date().toISOString()
     }

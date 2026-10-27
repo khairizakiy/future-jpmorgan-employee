@@ -8,7 +8,10 @@ export default function Header({ currentPath = '/', subtitle, profile }) {
   const githubUrl = profile?.github_url || 'https://github.com/khairinugroho'
   const instagramUrl = profile?.instagram_url || profile?.x_url || 'https://instagram.com/khairinugroho'
   const spotifyUrl = profile?.spotify_url || 'https://open.spotify.com/user/j45vdoajmtkvdq33tunybf9o6?si=3163aa858f2341ab'
-  const emailUrl = profile?.email ? `mailto:${profile.email}` : 'mailto:khairinugroho@gmail.com'
+  const emailRecipient = profile?.email || 'khairizakiyn@gmail.com'
+  const emailSubject = encodeURIComponent("Let's Connect")
+  const emailBody = encodeURIComponent("Hey Nugroho! ...")
+  const emailUrl = `mailto:${emailRecipient}?subject=${emailSubject}&body=${emailBody}`
 
   return (
     <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 mb-4 border-b border-[#c8c6be]">
@@ -91,11 +94,11 @@ export default function Header({ currentPath = '/', subtitle, profile }) {
           <span>Spotify</span>
         </a>
 
-        <a className="link-badge" href={emailUrl}>
+        <a className="link-badge" href={emailUrl} title="Send email via Gmail">
           <svg className="w-3 h-3 fill-current" viewBox="0 0 24 24">
             <path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4-8 5-8-5V6l8 5 8-5v2z" />
           </svg>
-          <span>Email</span>
+          <span>Gmail</span>
         </a>
       </div>
     </header>
