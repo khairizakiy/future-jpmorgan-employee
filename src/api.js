@@ -1,6 +1,11 @@
 const parse = async (res) => {
+  const contentType = res.headers.get('content-type') || ''
+  if (contentType.includes('text/html')) {
+    throw new Error(`API endpoint returned HTML instead of JSON. Ensure the server or Cloudflare Pages Functions are active on khairi.fun.`)
+  }
   const data = await res.json().catch(() => null)
   if (!res.ok) throw new Error((data && data.error) || `Request failed (${res.status})`)
+  if (data === null) throw new Error(`Invalid response received (${res.status})`)
   return data
 }
 
@@ -18,7 +23,8 @@ const call = async (url, method = 'GET', body) => {
     return await parse(res)
   } catch (err) {
     if (err.message && (err.message.includes('fetch') || err.message.includes('NetworkError') || err.message.includes('Failed to fetch') || err.message.includes('500'))) {
-      throw new Error('API server (port 4000) is unreachable. Run "npm run dev" to ensure both frontend and backend are active.')
+      const target = typeof window !== 'undefined' ? `${window.location.origin}/api` : 'https://khairi.fun/api'
+      throw new Error(`API server is unreachable at ${target}. Ensure your server or Cloudflare Pages Functions are active.`)
     }
     throw err
   }

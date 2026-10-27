@@ -630,10 +630,10 @@ export default function Admin() {
         api.authLogout()
         setAuthView('login')
       }
-    } catch {
+    } catch (e) {
       setServerOnline(false)
       setAuthView('login')
-      setAuthErr('Could not reach API server on port 4000. Start it using "npm run dev".')
+      setAuthErr(e.message || 'Could not reach API server (https://khairi.fun/api).')
     }
   }
 
@@ -790,7 +790,7 @@ export default function Admin() {
               </span>
               <span className={`flex items-center gap-1.5 font-semibold ${serverOnline ? 'text-emerald-700' : 'text-red-600'}`}>
                 <span className={`w-1.5 h-1.5 rounded-full ${serverOnline ? 'bg-emerald-600' : 'bg-red-500'} inline-block`}></span>
-                SERVER: {serverOnline ? 'PORT 4000 ONLINE' : 'OFFLINE'}
+                SERVER: {serverOnline ? 'ONLINE (khairi.fun)' : 'OFFLINE'}
               </span>
             </div>
 
@@ -815,7 +815,7 @@ export default function Admin() {
           {!serverOnline && (
             <div className="mb-4 p-2.5 bg-red-50 border border-red-300 text-red-800 text-xs font-mono rounded-sm">
               <strong className="block mb-1">⚠️ Server is offline</strong>
-              Run <code className="bg-black text-green-400 px-1 py-0.5 rounded">npm run dev</code> in your terminal.
+              Ensure backend server or Cloudflare Pages Functions are active at <code className="bg-black text-green-400 px-1 py-0.5 rounded">https://khairi.fun/api</code>.
               <button
                 onClick={checkConnection}
                 className="mt-2 block text-xs underline font-semibold text-red-700 hover:text-black"
@@ -2280,7 +2280,7 @@ export default function Admin() {
             </div>
             <div className="flex items-center justify-between">
               <span className="text-terminal-prompt">API Endpoint:</span>
-              <span>http://localhost:4000/api</span>
+              <span>{typeof window !== 'undefined' ? `${window.location.origin}/api` : 'https://khairi.fun/api'}</span>
             </div>
           </div>
 
