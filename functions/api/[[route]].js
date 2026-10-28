@@ -226,11 +226,12 @@ function formatProject(row) {
 function formatExperience(row) {
   if (!row) return null
   const logo = row.logo || (row.initial_bg && (row.initial_bg.startsWith('http') || row.initial_bg.startsWith('/uploads')) ? row.initial_bg : '')
-  const job_type = row.job_type || (Array.isArray(row.badges) && row.badges[0]) || 'Full-time'
+  const job_type = row.job_type || (Array.isArray(row.badges) && typeof row.badges[0] === 'string' ? row.badges[0] : null) || 'Full-time'
   return {
     ...row,
     logo,
-    job_type
+    job_type,
+    badges: [job_type]
   }
 }
 
@@ -533,11 +534,21 @@ export async function onRequest(context) {
           star: Boolean(b.star),
           description: b.description || '',
           badges: [jobType],
+          job_type: jobType,
           order_index: Number(b.order_index) || 0,
           published: b.published !== false
         }
-        const { data, error } = await supabase.from('experiences').insert(newExp).select().single()
-        if (error) throw error
+        let { data, error } = await supabase.from('experiences').insert(newExp).select().single()
+        if (error && error.message?.includes('job_type')) {
+          const fallback = { ...newExp }
+          delete fallback.job_type
+          const retry = await supabase.from('experiences').insert(fallback).select().single()
+          if (retry.error) throw retry.error
+          data = retry.data
+          if (data) data.job_type = jobType
+        } else if (error) {
+          throw error
+        }
         return json(formatExperience(data), 201)
       }
     }
@@ -547,15 +558,26 @@ export async function onRequest(context) {
       if (method === 'PUT') {
         const b = await request.json().catch(() => ({}))
         const logoUrl = b.logo !== undefined ? b.logo : undefined
-        const jobType = b.job_type !== undefined ? b.job_type : undefined
+        const jobType = b.job_type || (Array.isArray(b.badges) && b.badges[0]) || undefined
         const payload = { ...b }
         delete payload.logo
-        delete payload.job_type
         if (logoUrl !== undefined) payload.initial_bg = logoUrl
-        if (jobType !== undefined) payload.badges = [jobType]
+        if (jobType !== undefined) {
+          payload.job_type = jobType
+          payload.badges = [jobType]
+        }
 
-        const { data, error } = await supabase.from('experiences').update(payload).eq('id', id).select().single()
-        if (error) throw error
+        let { data, error } = await supabase.from('experiences').update(payload).eq('id', id).select().single()
+        if (error && error.message?.includes('job_type')) {
+          const fallback = { ...payload }
+          delete fallback.job_type
+          const retry = await supabase.from('experiences').update(fallback).eq('id', id).select().single()
+          if (retry.error) throw retry.error
+          data = retry.data
+          if (data && jobType) data.job_type = jobType
+        } else if (error) {
+          throw error
+        }
         return json(formatExperience(data))
       }
       if (method === 'DELETE') {

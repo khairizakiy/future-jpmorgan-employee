@@ -712,21 +712,29 @@ export const db = {
       if (publishedOnly) q = q.eq('published', true)
       const { data, error } = await q
       if (!error && Array.isArray(data)) {
-        return data.map((exp) => ({
-          ...exp,
-          logo: exp.logo || (exp.initial_bg && (exp.initial_bg.startsWith('http') || exp.initial_bg.startsWith('/uploads')) ? exp.initial_bg : ''),
-          job_type: exp.job_type || (Array.isArray(exp.badges) && exp.badges[0]) || 'Full-time'
-        }))
+        return data.map((exp) => {
+          const job_type = exp.job_type || (Array.isArray(exp.badges) && typeof exp.badges[0] === 'string' ? exp.badges[0] : null) || 'Full-time'
+          return {
+            ...exp,
+            logo: exp.logo || (exp.initial_bg && (exp.initial_bg.startsWith('http') || exp.initial_bg.startsWith('/uploads')) ? exp.initial_bg : ''),
+            job_type,
+            badges: [job_type]
+          }
+        })
       }
     } catch (err) {
       console.warn('[Supabase Experiences Notice]', err.message)
     }
     const local = db.getLocalData()
-    return (local.experiences || []).map((exp) => ({
-      ...exp,
-      logo: exp.logo || (exp.initial_bg && (exp.initial_bg.startsWith('http') || exp.initial_bg.startsWith('/uploads')) ? exp.initial_bg : ''),
-      job_type: exp.job_type || (Array.isArray(exp.badges) && exp.badges[0]) || 'Full-time'
-    }))
+    return (local.experiences || []).map((exp) => {
+      const job_type = exp.job_type || (Array.isArray(exp.badges) && typeof exp.badges[0] === 'string' ? exp.badges[0] : null) || 'Full-time'
+      return {
+        ...exp,
+        logo: exp.logo || (exp.initial_bg && (exp.initial_bg.startsWith('http') || exp.initial_bg.startsWith('/uploads')) ? exp.initial_bg : ''),
+        job_type,
+        badges: [job_type]
+      }
+    })
   },
 
   createExperience: async (b) => {
@@ -744,11 +752,18 @@ export const db = {
       star: Boolean(b.star),
       description: b.description || '',
       badges: [jobType],
+      job_type: jobType,
       order_index: Number(b.order_index) || 0,
       published: b.published !== false
     }
     try {
-      const { data, error } = await supabase.from('experiences').insert(newExp).select().single()
+      let { data, error } = await supabase.from('experiences').insert(newExp).select().single()
+      if (error && error.message?.includes('job_type')) {
+        const fallback = { ...newExp }
+        delete fallback.job_type
+        const retry = await supabase.from('experiences').insert(fallback).select().single()
+        if (!retry.error && retry.data) return { ...retry.data, logo: logoUrl, job_type: jobType }
+      }
       if (!error && data) return { ...data, logo: logoUrl, job_type: jobType }
       if (error) console.warn('[Supabase createExperience error]', error.message)
     } catch (err) {
@@ -765,7 +780,7 @@ export const db = {
     const logoUrl = b.logo !== undefined ? (b.logo || b.image || '') : undefined
     const jobType = b.job_type || (Array.isArray(b.badges) && b.badges[0]) || undefined
 
-    const allowed = ['company', 'initial', 'initial_bg', 'role', 'location', 'period', 'star', 'description', 'badges', 'order_index', 'published']
+    const allowed = ['company', 'initial', 'initial_bg', 'role', 'location', 'period', 'star', 'description', 'badges', 'job_type', 'order_index', 'published']
     const payload = {}
     for (const k of allowed) {
       if (b[k] !== undefined) payload[k] = b[k]
@@ -774,11 +789,24 @@ export const db = {
       payload.initial_bg = logoUrl || payload.initial_bg || '#1b1c18'
     }
     if (jobType !== undefined) {
+      payload.job_type = jobType
       payload.badges = [jobType]
     }
 
     try {
-      const { data, error } = await supabase.from('experiences').update(payload).eq('id', id).select().single()
+      let { data, error } = await supabase.from('experiences').update(payload).eq('id', id).select().single()
+      if (error && error.message?.includes('job_type')) {
+        const fallback = { ...payload }
+        delete fallback.job_type
+        const retry = await supabase.from('experiences').update(fallback).eq('id', id).select().single()
+        if (!retry.error && retry.data) {
+          return {
+            ...retry.data,
+            logo: logoUrl || (retry.data.initial_bg && (retry.data.initial_bg.startsWith('http') || retry.data.initial_bg.startsWith('/uploads')) ? retry.data.initial_bg : ''),
+            job_type: jobType || (Array.isArray(retry.data.badges) && retry.data.badges[0]) || 'Full-time'
+          }
+        }
+      }
       if (!error && data) {
         return {
           ...data,
@@ -797,7 +825,7 @@ export const db = {
           ...local.experiences[idx],
           ...payload,
           ...(logoUrl !== undefined ? { logo: logoUrl } : {}),
-          ...(jobType !== undefined ? { job_type: jobType } : {})
+          ...(jobType !== undefined ? { job_type: jobType, badges: [jobType] } : {})
         }
         db.saveLocalData(local)
         return local.experiences[idx]

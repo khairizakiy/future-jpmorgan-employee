@@ -147,8 +147,11 @@ export default function Admin() {
       return
     }
     try {
+      const jobType = expForm.job_type || 'Full-time'
       const payload = {
         ...expForm,
+        job_type: jobType,
+        badges: [jobType],
         initial: expForm.initial || (expForm.company ? expForm.company[0].toUpperCase() : 'E'),
         order_index: Number(expForm.order_index) || 0
       }
@@ -1289,6 +1292,8 @@ export default function Admin() {
                     <option value="Part-time">Part-time</option>
                     <option value="Internship">Internship</option>
                     <option value="Apprenticeship">Apprenticeship</option>
+                    <option value="Contract">Contract</option>
+                    <option value="Freelance">Freelance</option>
                   </select>
                 </div>
 
