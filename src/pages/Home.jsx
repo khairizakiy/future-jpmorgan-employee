@@ -1,7 +1,45 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect } from 'react'
 import Header from '../components/Header.jsx'
 import { navigate } from '../router.js'
 import { api } from '../api.js'
+
+const DEFAULT_SKILLS = [
+  'Quantitative Research & Macro Strategy',
+  'Financial Modeling & Quant Trading',
+  'Advanced Microsoft Excel & Data Operations',
+  'TypeScript, React, Node.js & Systems Architecture'
+]
+
+function parseSkills(raw) {
+  let source = raw || DEFAULT_SKILLS
+  if (typeof source === 'string') {
+    try {
+      const parsed = JSON.parse(source)
+      if (Array.isArray(parsed)) source = parsed
+    } catch {
+      if (source.includes('\n')) {
+        source = source.split('\n')
+      } else if (source.includes(';')) {
+        source = source.split(';')
+      }
+    }
+  }
+  if (Array.isArray(source)) {
+    const list = source
+      .map((item) => {
+        if (!item) return ''
+        if (typeof item === 'object') return item.name || item.title || item.label || ''
+        return String(item)
+      })
+      .map((s) => s.trim().replace(/^[•\-\*]\s*/, ''))
+      .filter(Boolean)
+    return list.length > 0 ? list : DEFAULT_SKILLS
+  }
+  if (typeof source === 'string' && source.trim()) {
+    return [source.trim().replace(/^[•\-\*]\s*/, '')]
+  }
+  return DEFAULT_SKILLS
+}
 
 function ExperienceLogo({ exp, className = 'w-8 h-8' }) {
   const [hasError, setHasError] = useState(false)
@@ -150,10 +188,13 @@ export default function Home() {
     )
   }
 
-  const profile = data?.profile || {
+  const defaultProfile = {
     name: 'Khairi Nugroho',
-    hero: 'batam, id',
-    headline: 'batam, id',
+    hero: 'quantitative researcher • batam, id',
+    headline: 'quantitative researcher • batam, id',
+    who_am_i: 'Vocational high school student driven by precision, discipline, and execution. Passionate about Formula 1 strategy, macroeconomics, finance, and Quant Trade.',
+    what_i_did: 'Available as a dependable everyday operator and virtual employee—handling Microsoft Excel data, Word documentation, research summarizing, and Personal Assistant operations.',
+    school: 'Vocational High School Student • Developer & Quantitative Researcher',
     photo: 'https://jnttmmhomgtpnkpymhfl.supabase.co/storage/v1/object/public/uploads/khairinugroho.jpeg',
     photo_label: 'khairinugroho.jpeg',
     linkedin_url: 'https://linkedin.com/in/khairinugroho',
@@ -161,10 +202,13 @@ export default function Home() {
     instagram_url: 'https://instagram.com/khairinugroho',
     spotify_url: 'https://open.spotify.com/user/j45vdoajmtkvdq33tunybf9o6?si=3163aa858f2341ab',
     email: 'khairinugroho@gmail.com',
+    resume_url: '#',
     motto: 'Precision is quiet; restraint speaks louder than ornamentation.'
   }
 
-  const currentHero = profile.hero || profile.headline || 'batam, id'
+  const profile = { ...defaultProfile, ...(data?.profile || {}) }
+
+  const currentHero = profile.hero || profile.headline || 'quantitative researcher • batam, id'
 
   const customBio = [profile.who_am_i, profile.what_i_did, profile.school].filter(Boolean)
   const bioParagraphs = customBio.length > 0
@@ -178,43 +222,8 @@ export default function Home() {
   const experiences = Array.isArray(data?.experiences) ? data.experiences : []
   const projects = Array.isArray(data?.projects) ? data.projects : []
 
-  const defaultSkills = [
-    'Quantitative Research & Macro Strategy',
-    'Financial Modeling & Quant Trading',
-    'Advanced Microsoft Excel & Data Operations',
-    'TypeScript, React, Node.js & Systems Architecture'
-  ]
-
-  const rawSkills = data?.skills || profile?.skills || defaultSkills
-  const skillsList = useMemo(() => {
-    let source = rawSkills
-    if (typeof source === 'string') {
-      try {
-        const parsed = JSON.parse(source)
-        if (Array.isArray(parsed)) source = parsed
-      } catch {
-        if (source.includes('\n')) {
-          source = source.split('\n')
-        } else if (source.includes(';')) {
-          source = source.split(';')
-        }
-      }
-    }
-    if (Array.isArray(source)) {
-      return source
-        .map((item) => {
-          if (!item) return ''
-          if (typeof item === 'object') return item.name || item.title || item.label || ''
-          return String(item)
-        })
-        .map((s) => s.trim().replace(/^[•\-\*]\s*/, ''))
-        .filter(Boolean)
-    }
-    if (typeof source === 'string' && source.trim()) {
-      return [source.trim().replace(/^[•\-\*]\s*/, '')]
-    }
-    return defaultSkills
-  }, [data?.skills, profile?.skills])
+  // Pure function parseSkills without any hook violation
+  const skillsList = parseSkills(data?.skills || profile?.skills)
 
   return (
     <div className="max-w-[760px] mx-auto">
@@ -344,7 +353,7 @@ export default function Home() {
                     {exp.description}
                   </p>
                 )}
-                {exp.badges && exp.badges.filter(b => typeof b === 'object' && b && b.label).length > 0 && (
+                {Array.isArray(exp.badges) && exp.badges.filter(b => typeof b === 'object' && b && b.label).length > 0 && (
                   <div className="flex flex-wrap gap-1.5 mt-2.5 pt-2 border-t border-[#ebe8e0]">
                     {exp.badges.filter(b => typeof b === 'object' && b && b.label).map((badge, bIdx) => (
                       <a
@@ -384,7 +393,7 @@ export default function Home() {
                   )}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between">
-                      <span className="f```ont-bold text-[13.5px] text-on-surface">
+                      <span className="font-bold text-[13.5px] text-on-surface">
                         {proj.title}
                       </span>
                       {proj.star ? (
@@ -399,7 +408,7 @@ export default function Home() {
                       {proj.description}
                     </p>
                     <div className="flex flex-wrap items-center gap-1.5 mt-2">
-                      {proj.links && proj.links.length > 0 ? (
+                      {Array.isArray(proj.links) && proj.links.length > 0 ? (
                         proj.links.map((lnk, lIdx) => (
                           <a
                             key={lIdx}
@@ -416,7 +425,7 @@ export default function Home() {
                           View Project
                         </a>
                       )}
-                      {proj.tags && proj.tags.length > 0 && (
+                      {Array.isArray(proj.tags) && proj.tags.length > 0 && (
                         <span className="text-[10px] font-mono text-terminal-prompt ml-1">
                           {proj.tags.join(' • ')}
                         </span>
