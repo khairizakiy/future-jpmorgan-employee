@@ -94,6 +94,15 @@ app.put(
   })
 )
 
+// ---------- skills ----------
+app.get(
+  '/api/skills',
+  ah(async (_req, res) => {
+    const skills = await db.getSkills()
+    res.json(skills)
+  })
+)
+
 // ---------- bio (about section) ----------
 app.get(
   '/api/bio',

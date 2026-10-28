@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import Header from '../components/Header.jsx'
 import { navigate } from '../router.js'
 import { api } from '../api.js'
@@ -71,6 +71,7 @@ export default function Home() {
               <div className="skeleton skeleton-text w-4/5"></div>
               <div className="skeleton skeleton-text w-full mt-3"></div>
               <div className="skeleton skeleton-text w-3/4"></div>
+              <div className="skeleton skeleton-text w-4/6 mt-2"></div>
               <div className="pt-2 flex flex-wrap gap-2">
                 <div className="skeleton w-28 h-6 rounded-sm"></div>
                 <div className="skeleton w-44 h-6 rounded-sm"></div>
@@ -177,6 +178,44 @@ export default function Home() {
   const experiences = Array.isArray(data?.experiences) ? data.experiences : []
   const projects = Array.isArray(data?.projects) ? data.projects : []
 
+  const defaultSkills = [
+    'Quantitative Research & Macro Strategy',
+    'Financial Modeling & Quant Trading',
+    'Advanced Microsoft Excel & Data Operations',
+    'TypeScript, React, Node.js & Systems Architecture'
+  ]
+
+  const rawSkills = data?.skills || profile?.skills || defaultSkills
+  const skillsList = useMemo(() => {
+    let source = rawSkills
+    if (typeof source === 'string') {
+      try {
+        const parsed = JSON.parse(source)
+        if (Array.isArray(parsed)) source = parsed
+      } catch {
+        if (source.includes('\n')) {
+          source = source.split('\n')
+        } else if (source.includes(';')) {
+          source = source.split(';')
+        }
+      }
+    }
+    if (Array.isArray(source)) {
+      return source
+        .map((item) => {
+          if (!item) return ''
+          if (typeof item === 'object') return item.name || item.title || item.label || ''
+          return String(item)
+        })
+        .map((s) => s.trim().replace(/^[•\-\*]\s*/, ''))
+        .filter(Boolean)
+    }
+    if (typeof source === 'string' && source.trim()) {
+      return [source.trim().replace(/^[•\-\*]\s*/, '')]
+    }
+    return defaultSkills
+  }, [data?.skills, profile?.skills])
+
   return (
     <div className="max-w-[760px] mx-auto">
       {/* Top Header bar */}
@@ -196,11 +235,28 @@ export default function Home() {
               </p>
             ))}
 
+            {/* skills point */}
+            {skillsList.length > 0 && (
+              <div className="pt-1 pb-0.5 space-y-1 text-xs font-mono text-on-surface-variant">
+                {skillsList.map((skill, idx) => (
+                  <div key={idx} className="flex items-baseline gap-2">
+                    <span className="text-terminal-prompt font-bold select-none">•</span>
+                    <span>
+                      {idx === 0 && !skill.toLowerCase().startsWith('skill') ? (
+                        <span className="text-on-surface font-semibold">skills: </span>
+                      ) : null}
+                      {skill}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+
             <div className="pt-2 flex flex-wrap items-center gap-2.5 text-xs text-terminal-prompt font-mono">
               <a
                 className="link-badge font-mono text-[11px] font-medium !bg-[#1b1c18] !text-white !border-[#1b1c18] hover:!bg-[#2a2b27]"
                 download="khairinugroho_resume.pdf"
-                href="#"
+                href={profile.resume_url && profile.resume_url !== '#' ? profile.resume_url : '#'}
               >
                 <svg className="w-3 h-3 fill-current" viewBox="0 0 24 24">
                   <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z" />

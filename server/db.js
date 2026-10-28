@@ -218,6 +218,7 @@ export const db = {
       who_am_i: vals.who_am_i !== undefined ? vals.who_am_i : (current?.who_am_i ?? ''),
       what_i_did: vals.what_i_did !== undefined ? vals.what_i_did : (current?.what_i_did ?? ''),
       school: vals.school !== undefined ? vals.school : (current?.school ?? ''),
+      skills: vals.skills !== undefined ? vals.skills : (current?.skills ?? null),
       photo: vals.photo !== undefined ? vals.photo : (current?.photo ?? null),
       email: vals.email !== undefined ? vals.email : (current?.email ?? null),
       x_url: instagram ? normalizeSocialUrl(instagram) : null,
@@ -249,8 +250,17 @@ export const db = {
           .eq('id', current.id)
           .select()
           .single()
-        if (fallback.error) throw fallback.error
-        result = fallback.data
+        if (!fallback.error) {
+          result = fallback.data
+        } else if (fallback.error.message?.includes('skills')) {
+          const safePayload = { ...payload }
+          delete safePayload.skills
+          const retry = await supabase.from('profile').update(safePayload).eq('id', current.id).select().single()
+          if (retry.error) throw retry.error
+          result = retry.data
+        } else {
+          throw fallback.error
+        }
       }
     } else {
       const withInsta = { ...payload, instagram_url: payload.x_url }
@@ -259,14 +269,24 @@ export const db = {
         result = tryFirst.data
       } else {
         const fallback = await supabase.from('profile').insert(payload).select().single()
-        if (fallback.error) throw fallback.error
-        result = fallback.data
+        if (!fallback.error) {
+          result = fallback.data
+        } else if (fallback.error.message?.includes('skills')) {
+          const safePayload = { ...payload }
+          delete safePayload.skills
+          const retry = await supabase.from('profile').insert(safePayload).select().single()
+          if (retry.error) throw retry.error
+          result = retry.data
+        } else {
+          throw fallback.error
+        }
       }
     }
     if (result) {
       result.instagram_url = result.instagram_url || result.x_url || null
       if (result.linkedin_url) result.linkedin_url = normalizeSocialUrl(result.linkedin_url)
       if (result.github_url) result.github_url = normalizeSocialUrl(result.github_url)
+      if (payload.skills !== undefined) result.skills = payload.skills
 
       try {
         const local = db.getLocalData()
@@ -282,7 +302,8 @@ export const db = {
           instagram_url: result.instagram_url,
           who_am_i: result.who_am_i,
           what_i_did: result.what_i_did,
-          school: result.school
+          school: result.school,
+          skills: result.skills || payload.skills
         }
         db.saveLocalData(local)
       } catch (err) {
@@ -1131,9 +1152,32 @@ export const db = {
     return local.cat
   },
 
+  // ---------- Skills ----------
+  getSkills: async () => {
+    try {
+      const { data, error } = await supabase
+        .from('skills')
+        .select('*')
+        .eq('published', true)
+        .order('order_index', { ascending: true })
+      if (!error && Array.isArray(data) && data.length > 0) {
+        return data
+      }
+    } catch {}
+    const local = db.getLocalData()
+    if (local?.profile?.skills) return local.profile.skills
+    if (local?.skills) return local.skills
+    return [
+      'Quantitative Research & Macro Strategy',
+      'Financial Modeling & Quant Trading',
+      'Advanced Microsoft Excel & Data Operations',
+      'TypeScript, React, Node.js & Systems Architecture'
+    ]
+  },
+
   // ---------- Full Aggregated Data for SSR ----------
   getFullPortfolio: async () => {
-    const [profile, bio, projects, experiences, music, tiguan, friends, cat] = await Promise.all([
+    const [profile, bio, projects, experiences, music, tiguan, friends, cat, skills] = await Promise.all([
       db.getProfile().catch(() => null),
       db.getBio().catch(() => null),
       db.getProjects(true).catch(() => []),
@@ -1141,12 +1185,21 @@ export const db = {
       db.getMusic().catch(() => ({ total_albums: 0, albums: [], moods: {} })),
       db.getTiguan().catch(() => ({})),
       db.getFriends().catch(() => ({ photos: [] })),
-      db.getCat().catch(() => ({}))
+      db.getCat().catch(() => ({})),
+      db.getSkills().catch(() => [])
     ])
+
+    const defaultSkills = [
+      'Quantitative Research & Macro Strategy',
+      'Financial Modeling & Quant Trading',
+      'Advanced Microsoft Excel & Data Operations',
+      'TypeScript, React, Node.js & Systems Architecture'
+    ]
 
     return {
       profile: profile || null,
       bio: bio || DEFAULT_BIO,
+      skills: (skills && skills.length > 0) ? skills : (profile?.skills || defaultSkills),
       projects: Array.isArray(projects) ? projects : [],
       experiences: Array.isArray(experiences) ? experiences : [],
       music: music || { total_albums: 0, albums: [], moods: {} },

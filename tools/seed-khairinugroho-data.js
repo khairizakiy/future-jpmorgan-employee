@@ -38,18 +38,46 @@ async function seed() {
     instagram_url: data.profile.instagram_url,
     github_url: data.profile.github_url,
     linkedin_url: data.profile.linkedin_url,
+    skills: data.profile.skills || [],
     updated_at: new Date().toISOString()
   }
 
   const { data: existingProf } = await supabase.from('profile').select('id').limit(1).maybeSingle()
   if (existingProf) {
-    const { error } = await supabase.from('profile').update(profilePayload).eq('id', existingProf.id)
+    let { error } = await supabase.from('profile').update(profilePayload).eq('id', existingProf.id)
+    if (error && error.message?.includes('skills')) {
+      const fallbackPayload = { ...profilePayload }
+      delete fallbackPayload.skills
+      const retry = await supabase.from('profile').update(fallbackPayload).eq('id', existingProf.id)
+      error = retry.error
+    }
     if (error) console.warn('Profile update warning:', error.message)
     else console.log('[+] Profile updated successfully!')
   } else {
-    const { error } = await supabase.from('profile').insert({ id: 1, ...profilePayload })
+    let { error } = await supabase.from('profile').insert({ id: 1, ...profilePayload })
+    if (error && error.message?.includes('skills')) {
+      const fallbackPayload = { ...profilePayload }
+      delete fallbackPayload.skills
+      const retry = await supabase.from('profile').insert({ id: 1, ...fallbackPayload })
+      error = retry.error
+    }
     if (error) console.warn('Profile insert warning:', error.message)
     else console.log('[+] Profile created successfully!')
+  }
+
+  // 1b. Update Skills Table
+  console.log('Updating skills in Supabase...')
+  try {
+    await supabase.from('skills').delete().neq('id', 0)
+    if (Array.isArray(data.skills)) {
+      for (const s of data.skills) {
+        const { error } = await supabase.from('skills').insert(s)
+        if (error) console.warn(`Skills insert notice for ${s.name}:`, error.message)
+      }
+      console.log('[+] Skills synchronized with Supabase!')
+    }
+  } catch (err) {
+    console.warn('[!] Skills table notice:', err.message)
   }
 
   // 2. Update Bio

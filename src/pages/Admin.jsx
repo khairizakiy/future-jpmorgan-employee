@@ -74,6 +74,7 @@ export default function Admin() {
     who_am_i: '',
     what_i_did: '',
     school: '',
+    skills: '',
     photo: '',
     photo_label: '',
     email: '',
@@ -96,6 +97,7 @@ export default function Admin() {
         who_am_i: profile.who_am_i,
         what_i_did: profile.what_i_did,
         school: profile.school,
+        skills: profile.skills,
         photo: profile.photo,
         email: profile.email,
         linkedin_url: profile.linkedin_url,
@@ -655,6 +657,12 @@ export default function Admin() {
       api.cat().catch(() => ({}))
     ]).then(([prof, bioData, expList, projList, musicRes, tiguanRes, friendsRes, catRes]) => {
       if (prof) {
+        let skillsVal = ''
+        if (Array.isArray(prof.skills)) {
+          skillsVal = prof.skills.map((s) => (typeof s === 'object' ? (s.name || s.label || '') : s)).filter(Boolean).join('\n')
+        } else if (typeof prof.skills === 'string') {
+          skillsVal = prof.skills
+        }
         setProfile((prev) => ({
           ...prev,
           name: prof.name ?? prev.name,
@@ -662,6 +670,7 @@ export default function Admin() {
           who_am_i: prof.who_am_i || prev.who_am_i,
           what_i_did: prof.what_i_did || prev.what_i_did,
           school: prof.school || prev.school,
+          skills: skillsVal || prev.skills,
           photo: prof.photo || prev.photo,
           email: prof.email || prev.email,
           linkedin_url: prof.linkedin_url || prev.linkedin_url,
@@ -1104,6 +1113,20 @@ export default function Admin() {
                 value={profile.school}
                 onChange={(e) => setProfile({ ...profile, school: e.target.value })}
               />
+            </div>
+
+            <div>
+              <label className="admin-label">Skills Point(s) (Inside whoami)</label>
+              <textarea
+                className="admin-input font-mono text-xs"
+                rows={3}
+                value={profile.skills}
+                onChange={(e) => setProfile({ ...profile, skills: e.target.value })}
+                placeholder="e.g. Quantitative Research &amp; Macro Strategy&#10;Financial Modeling &amp; Quant Trading&#10;Advanced Microsoft Excel &amp; Data Operations&#10;TypeScript, React, Node.js &amp; Systems Architecture"
+              />
+              <div className="text-[10px] text-on-surface-variant font-mono mt-1">
+                Rendered as bullet point(s) in whoami box directly before resume.pdf. Enter one point per line or comma-separated.
+              </div>
             </div>
 
             <div>

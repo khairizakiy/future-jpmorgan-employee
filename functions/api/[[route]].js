@@ -51,6 +51,12 @@ const DEFAULT_PROFILE = {
   what_i_did: 'Available as a dependable everyday operator and virtual employee—handling Microsoft Excel data, Word documentation, research summarizing, and Personal Assistant operations.',
   school: 'Vocational High School Student • Developer & Quantitative Researcher',
   photo: 'https://jnttmmhomgtpnkpymhfl.supabase.co/storage/v1/object/public/uploads/khairinugroho.jpeg',
+  skills: [
+    'Quantitative Research & Macro Strategy',
+    'Financial Modeling & Quant Trading',
+    'Advanced Microsoft Excel & Data Operations',
+    'TypeScript, React, Node.js & Systems Architecture'
+  ],
   email: 'khairinugroho@gmail.com',
   x_url: 'https://instagram.com/khairinugroho',
   github_url: 'https://github.com/khairinugroho',
@@ -309,9 +315,19 @@ export async function onRequest(context) {
         supabase.from('cat').select('*').limit(1).maybeSingle()
       ])
 
+      let skillsData = []
+      try {
+        const { data: sRows, error: sErr } = await supabase.from('skills').select('*').eq('published', true).order('order_index', { ascending: true })
+        if (!sErr && Array.isArray(sRows) && sRows.length > 0) {
+          skillsData = sRows
+        }
+      } catch {}
+
       const rawProf = profData || DEFAULT_PROFILE
       const profile = {
+        ...DEFAULT_PROFILE,
         ...rawProf,
+        skills: rawProf.skills || (skillsData.length > 0 ? skillsData.map(s => s.name) : DEFAULT_PROFILE.skills),
         instagram_url: rawProf.instagram_url || rawProf.x_url || '',
         x_url: rawProf.x_url || rawProf.instagram_url || ''
       }
@@ -354,6 +370,7 @@ export async function onRequest(context) {
       return json({
         profile,
         bio,
+        skills: skillsData.length > 0 ? skillsData : profile.skills,
         projects,
         experiences,
         music,
@@ -371,8 +388,17 @@ export async function onRequest(context) {
         const { data, error } = await supabase.from('profile').select('*').limit(1).maybeSingle()
         if (error) throw error
         const p = data || DEFAULT_PROFILE
+        let skills = p.skills || DEFAULT_PROFILE.skills
+        if (!p.skills) {
+          try {
+            const { data: sData } = await supabase.from('skills').select('*').order('order_index', { ascending: true })
+            if (sData && sData.length > 0) skills = sData
+          } catch {}
+        }
         return json({
+          ...DEFAULT_PROFILE,
           ...p,
+          skills,
           instagram_url: p.instagram_url || p.x_url || '',
           x_url: p.x_url || p.instagram_url || ''
         })
@@ -389,22 +415,73 @@ export async function onRequest(context) {
           delete payload.instagram_url
         }
 
+        // Parse skills if string with newlines
+        let skillsList = null
+        if (payload.skills !== undefined) {
+          if (typeof payload.skills === 'string') {
+            if (payload.skills.includes('\n')) {
+              payload.skills = payload.skills.split('\n').map((s) => s.trim()).filter(Boolean)
+            } else if (payload.skills.includes(',')) {
+              payload.skills = payload.skills.split(',').map((s) => s.trim()).filter(Boolean)
+            }
+          }
+          skillsList = Array.isArray(payload.skills) ? payload.skills : [payload.skills]
+        }
+
         const { data: cur } = await supabase.from('profile').select('id').limit(1).maybeSingle()
         let result
         if (cur) {
-          const { data, error } = await supabase.from('profile').update(payload).eq('id', cur.id).select().single()
-          if (error) throw error
-          result = data
+          let updateRes = await supabase.from('profile').update(payload).eq('id', cur.id).select().single()
+          if (updateRes.error && updateRes.error.message?.includes('skills')) {
+            const fallbackPayload = { ...payload }
+            delete fallbackPayload.skills
+            updateRes = await supabase.from('profile').update(fallbackPayload).eq('id', cur.id).select().single()
+          }
+          if (updateRes.error) throw updateRes.error
+          result = updateRes.data
         } else {
-          const { data, error } = await supabase.from('profile').insert({ id: 1, ...payload }).select().single()
-          if (error) throw error
-          result = data
+          let insertRes = await supabase.from('profile').insert({ id: 1, ...payload }).select().single()
+          if (insertRes.error && insertRes.error.message?.includes('skills')) {
+            const fallbackPayload = { ...payload }
+            delete fallbackPayload.skills
+            insertRes = await supabase.from('profile').insert({ id: 1, ...fallbackPayload }).select().single()
+          }
+          if (insertRes.error) throw insertRes.error
+          result = insertRes.data
         }
+
+        // Sync skills table if available
+        if (skillsList && skillsList.length > 0) {
+          try {
+            await supabase.from('skills').delete().neq('id', 0)
+            const rowsToInsert = skillsList.map((name, idx) => ({
+              name: typeof name === 'object' ? (name.name || name.label) : String(name),
+              category: 'General',
+              order_index: idx + 1,
+              published: true
+            }))
+            await supabase.from('skills').insert(rowsToInsert)
+          } catch {}
+        }
+
         return json({
           ...result,
+          skills: payload.skills || result?.skills || DEFAULT_PROFILE.skills,
           instagram_url: result?.instagram_url || result?.x_url || '',
           x_url: result?.x_url || result?.instagram_url || ''
         })
+      }
+    }
+
+    // ---------- Skills ----------
+    if (pathname === '/api/skills') {
+      if (method === 'GET') {
+        let skills = DEFAULT_PROFILE.skills
+        try {
+          const { data, error } = await supabase.from('skills').select('*').eq('published', true).order('order_index', { ascending: true })
+          if (!error && Array.isArray(data) && data.length > 0) skills = data
+        } catch {}
+        return json(skills)
       }
     }
 

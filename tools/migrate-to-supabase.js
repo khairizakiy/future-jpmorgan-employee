@@ -17,7 +17,7 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
 async function check() {
   console.log(`[Supabase Check] Connecting to ${SUPABASE_URL}...`)
 
-  const tables = ['profile', 'bio', 'experiences', 'projects', 'music', 'tiguan', 'friends', 'cat', 'admin_users', 'pictures']
+  const tables = ['profile', 'skills', 'bio', 'experiences', 'projects', 'music', 'tiguan', 'friends', 'cat', 'admin_users', 'pictures']
   for (const t of tables) {
     const { data, error, count } = await supabase.from(t).select('*', { count: 'exact' }).limit(1)
     if (error) {

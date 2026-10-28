@@ -19,8 +19,44 @@
     "motto": "Precision is quiet; restraint speaks louder than ornamentation.",
     "who_am_i": "Vocational high school student driven by precision, discipline, and execution. Passionate about Formula 1 strategy, macroeconomics, finance, and market trading.",
     "what_i_did": "Available as a dependable everyday operator and virtual employee—handling Microsoft Excel data, Word documentation, research summarizing, and Personal Assistant operations.",
-    "school": "Vocational High School Student • Developer & Quantitative Researcher"
+    "school": "Vocational High School Student • Developer & Quantitative Researcher",
+    "skills": [
+      "Quantitative Research & Macro Strategy",
+      "Financial Modeling & Quant Trading",
+      "Advanced Microsoft Excel & Data Operations",
+      "TypeScript, React, Node.js & Systems Architecture"
+    ]
   },
+  "skills": [
+    {
+      "id": 1,
+      "name": "Quantitative Research & Macro Strategy",
+      "category": "Finance",
+      "order_index": 1,
+      "published": true
+    },
+    {
+      "id": 2,
+      "name": "Financial Modeling & Quant Trading",
+      "category": "Finance",
+      "order_index": 2,
+      "published": true
+    },
+    {
+      "id": 3,
+      "name": "Advanced Microsoft Excel & Data Operations",
+      "category": "Operations",
+      "order_index": 3,
+      "published": true
+    },
+    {
+      "id": 4,
+      "name": "TypeScript, React, Node.js & Systems Architecture",
+      "category": "Engineering",
+      "order_index": 4,
+      "published": true
+    }
+  ],
   "experiences": [],
   "projects": [],
   "music": {
