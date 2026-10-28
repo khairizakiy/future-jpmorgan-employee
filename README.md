@@ -12,19 +12,8 @@ Hi, this is my personal portfolio website built in the Swiss Style with Neo-Brut
 ```text
 portfolio/
 ├── functions/                     # Cloudflare Pages Functions (Serverless Edge API)
-│   └── api/
-│       └── [[route]].js           # Catch-all Edge router for /api endpoints on khairi.fun
 ├── public/                        # Static assets served at domain root
-│   ├── fonts/                     # Typography files (FK Screamer, Space Mono, IBM Plex Mono)
-│   ├── uploads/                   # Project & gallery images synced with Supabase Storage
-│   ├── apple-touch-icon.png       # iOS home screen icon (180x180)
-│   ├── favicon.ico                # Standard browser favicon (32x32)
-│   ├── favicon.png                # High-resolution PNG favicon (64x64)
-│   ├── favicon.svg                # Vector SVG razor-blade icon
-│   └── khairinugroho.jpeg         # High-resolution official portrait photo
 ├── server/                        # Local Node.js / Express development backend
-│   ├── db.js                      # Supabase data access layer & database methods
-│   └── index.js                   # Express API server with JWT authentication (port 4000)
 ├── src/                           # React 19 Frontend application (Vite)
 │   ├── components/                # Reusable UI components
 │   │   └── Header.jsx             # Terminal header navigation bar with route indicator
@@ -41,8 +30,6 @@ portfolio/
 │   ├── main.jsx                   # React DOM entry point
 │   └── router.js                  # Lightweight client-side router
 ├── tools/                         # Maintenance, test & seed scripts
-│   ├── migrate-to-supabase.js     # Health check & table readiness verification script
-│   └── seed-khairinugroho-data.js # Populates Supabase with complete portfolio records
 ├── .env.example                   # Template for required environment variables
 ├── index.html                     # HTML shell with meta tags, fonts & Tailwind CDN
 ├── package.json                   # Dependencies, scripts & build configuration
