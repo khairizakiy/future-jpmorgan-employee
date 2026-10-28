@@ -40,43 +40,6 @@ portfolio/
 
 ---
 
-## Detailed Directory Breakdown
-
-### `functions/` — Cloudflare Pages Serverless Edge API
-Powers the production backend for **`https://khairi.fun/api/*`** at the edge:
-* **`functions/api/[[route]].js`**: A universal catch-all serverless function deployed on Cloudflare Pages. It directly connects to Supabase via `@supabase/supabase-js`, verifies JWT tokens for administrative actions, handles multipart media uploads to Supabase Storage, and aggregates full portfolio records with sub-millisecond edge latency.
-
-### `public/` — Static Web Assets
-Static files served directly at the root (`/`) of the domain:
-* **`favicon.*`**: Optimized SVG, PNG (64x64), and ICO (32x32) favicon formats for browser tabs, bookmarks, and mobile home screens.
-* **`fonts/`**: Self-hosted custom typefaces (**IBM Plex Mono**, **Space Mono**, and **FK Screamer**).
-* **`khairinugroho.jpeg`**: High-resolution official portrait photo with local offline fallback.
-* **`uploads/`**: Media files and company SVGs.
-
-### `server/` — Local Node.js & Express Backend
-Used when developing locally:
-* **`index.js`**: Express server running on port `4000` providing local parity with the Cloudflare Pages edge functions.
-* **`db.js`**: Database abstraction layer implementing query handling, data sanitization, social link normalization, and fallback defaults.
-
-### `src/` — React 19 Frontend
-Source code for the user interface, styled in the Swiss Neo-Brutalist style:
-* **`components/`**: Layout blocks like `Header.jsx` with active route pills and retro terminal styling.
-* **`pages/`**:
-  * **`Home.jsx`**: Main personal homepage presenting the hero header, bio, work experience timeline, and featured project case studies.
-  * **`Admin.jsx`**: Administrative portal for managing profile details, bio, experiences, projects, vinyl tracks, and car specifications.
-  * **`MusicPage.jsx`**: Vinyl record crate browser featuring a 3-row interactive marquee, customizable playback speed (`0.5x`, `1.0x`, `1.5x`), mood filters, and live album inspection.
-  * **`TiguanPage.jsx`**: Automotive build sheet detailing MQB platform modifications, suspension, exhaust, and track runs.
-  * **`FriendsPage.jsx`**: 35mm film photo grid capturing roadtrips and snapshots.
-  * **`CatPage.jsx`**: Dedicated interactive page for Mochi with real-time pat tracking.
-* **`api.js`**: Centralized API utility managing authentication headers, request formatting, and error notifications.
-* **`router.js`**: Lightweight client-side router enabling clean URL navigation without heavy dependencies.
-
-### `tools/` — Utilities & Automation
-* **`migrate-to-supabase.js`**: Verifies connectivity with your Supabase instance and checks table readiness.
-* **`seed-khairinugroho-data.js`**: Seeds initial bio, project case studies, music albums, and car mods directly into Supabase.
-
----
-
 ## Getting Started
 
 ### 1. Prerequisites
