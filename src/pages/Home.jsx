@@ -380,7 +380,7 @@ export default function Home() {
         <div className="space-y-2.5">
           <p className="text-xs text-on-surface-variant font-mono">My life motto</p>
           <blockquote className="text-[14px] italic text-on-surface border-l-2 border-[#75736c] pl-3 py-0.5">
-            “{profile.motto || 'Precision is quiet; restraint speaks louder than ornamentation.'}”
+            “{profile.motto || 'if you like music you like house, you just dont realize it yet'}”
           </blockquote>
           <div className="pt-2">
             <div className="text-[11px] font-mono text-terminal-prompt mb-1.5 flex items-center justify-between">
