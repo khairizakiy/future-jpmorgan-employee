@@ -491,7 +491,9 @@ export default function Home() {
             <span className="text-terminal-prompt">•</span>
             <a
               className="text-accent-link underline hover:text-[#005582]"
-              href={`mailto:${profile.email || 'khairizakiyn@gmail.com'}?subject=${encodeURIComponent("Let's Connect")}&body=${encodeURIComponent("Hey Nugroho! ...")}`}
+              href={`https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(profile.email || 'khairizakiyn@gmail.com')}&su=${encodeURIComponent("Let's Connect!")}&body=${encodeURIComponent("Hey Zakiy! ...")}`}
+              target="_blank"
+              rel="noopener noreferrer"
             >
               Gmail
             </a>
