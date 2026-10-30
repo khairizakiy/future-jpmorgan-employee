@@ -3,7 +3,6 @@
 Hi, this is my personal portfolio website built in the Swiss Style with Neo-Brutalist architecture. It combines **React**, **Vite**, and an **Express / Cloudflare Pages Functions** backend integrated directly with **Supabase** (PostgreSQL) for database records and media storage.
 
 * **Live Site**: [https://khairi.fun](https://khairi.fun)
-* **Admin Portal**: [https://khairi.fun/admin](https://khairi.fun/admin)
 
 ---
 
