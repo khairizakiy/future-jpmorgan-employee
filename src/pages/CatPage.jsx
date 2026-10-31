@@ -114,7 +114,7 @@ export default function CatPage() {
       <Header currentPath="/cat" subtitle="office companion • keyboard blocker • low-frequency resonance" />
 
       <div className="cmd-box" id="section-cat">
-        <div className="cmd-header">C:\users\loli (cat)</div>
+        <div className="cmd-header">/home/loli (cat)</div>
         <div className="flex items-center justify-between mb-3 text-xs text-on-surface-variant font-mono">
           <span>{c.name} ({c.role})</span>
           <button

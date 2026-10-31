@@ -232,7 +232,7 @@ export default function Home() {
 
       {/* whoami */}
       <div className="cmd-box" id="whoami">
-        <div className="cmd-header">C:\users\whoami</div>
+        <div className="cmd-header">/home/whoami</div>
         <div className="flex flex-col-reverse md:flex-row gap-5 items-start">
           <div className="flex-1 space-y-2.5 text-on-surface">
             {bioParagraphs.map((p, idx) => (
@@ -316,7 +316,7 @@ export default function Home() {
       {/* experience (conditionally rendered only if entries exist) */}
       {experiences.length > 0 && (
         <div className="cmd-box" id="experience">
-          <div className="cmd-header">C:\users\experience</div>
+          <div className="cmd-header">/home/experience</div>
           <div className="text-xs text-on-surface-variant font-mono mb-3">
             the more professional-looking part of this
           </div>
@@ -375,7 +375,7 @@ export default function Home() {
       {/* projects (conditionally rendered only if entries exist) */}
       {projects.length > 0 && (
         <div className="cmd-box" id="projects">
-          <div className="cmd-header">C:\users\projects</div>
+          <div className="cmd-header">/home/projects</div>
           <div className="text-xs text-on-surface-variant font-mono mb-3">
             a few things I want people to actually click on
           </div>
@@ -441,7 +441,7 @@ export default function Home() {
 
       {/* motto & page links */}
       <div className="cmd-box">
-        <div className="cmd-header">C:\users\motto</div>
+        <div className="cmd-header">/home/motto</div>
         <div className="space-y-2.5">
           <p className="text-xs text-on-surface-variant font-mono">My life motto</p>
           <blockquote className="text-[14px] italic text-on-surface border-l-2 border-[#75736c] pl-3 py-0.5">
@@ -484,7 +484,7 @@ export default function Home() {
 
       {/* links */}
       <div className="cmd-box" id="links">
-        <div className="cmd-header">C:\users\links</div>
+        <div className="cmd-header">/home/links</div>
         <div className="text-xs text-on-surface mb-2 font-mono text-terminal-prompt">links!</div>
         <ul className="space-y-1 text-xs pl-2 font-mono">
           <li className="flex items-center gap-2">

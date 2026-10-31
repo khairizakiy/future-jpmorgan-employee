@@ -149,7 +149,7 @@ export default function MusicPage() {
       <Header currentPath="/music" subtitle="analog vinyl crates • modular synths • midnight listening" />
 
       <div className="cmd-box" id="section-music">
-        <div className="cmd-header">C:\users\music</div>
+        <div className="cmd-header">/home/music</div>
 
         {/* Header & Controls Bar */}
         <div className="flex flex-col gap-2 pb-3 mb-3 border-b border-[#c8c6be]">

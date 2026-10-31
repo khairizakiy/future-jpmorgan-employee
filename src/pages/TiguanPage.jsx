@@ -94,7 +94,7 @@ export default function TiguanPage() {
       <Header currentPath="/tiguan" subtitle="MQB platform • EA888 2.0 TSI" />
 
       <div className="cmd-box" id="section-tiguan">
-        <div className="cmd-header">C:\users\2009 tiguan</div>
+        <div className="cmd-header">/home/2009 tiguan</div>
         <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-3 text-xs text-on-surface-variant font-mono gap-1">
           <span>{t.title}</span>
           <span className="text-terminal-prompt">{t.color}</span>

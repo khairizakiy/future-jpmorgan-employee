@@ -29,7 +29,7 @@ export default function FriendsPage() {
       <div className="max-w-[760px] mx-auto">
         <Header currentPath="/friends" subtitle="good people, roadtrips, and late diner coffee" />
         <div className="cmd-box">
-          <div className="cmd-header">C:\users\friends &amp; film // loading database...</div>
+          <div className="cmd-header">/home/friends &amp; film // loading database...</div>
           <div className="space-y-4">
             <div className="skeleton skeleton-text w-1/3"></div>
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 pt-2">
