@@ -10,7 +10,7 @@ export default function Header({ currentPath = '/', subtitle, profile }) {
   const spotifyUrl = profile?.spotify_url || 'https://open.spotify.com/user/j45vdoajmtkvdq33tunybf9o6?si=3163aa858f2341ab'
   const emailRecipient = profile?.email || 'khairizakiyn@gmail.com'
   const emailSubject = encodeURIComponent("Let's Connect!")
-  const emailBody = encodeURIComponent("Hey Zakiy! ...")
+  const emailBody = encodeURIComponent("Hey Zakiy!")
   const emailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(emailRecipient)}&su=${emailSubject}&body=${emailBody}`
 
   return (
