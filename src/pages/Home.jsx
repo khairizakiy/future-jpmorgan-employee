@@ -316,7 +316,7 @@ export default function Home() {
       {/* experience (conditionally rendered only if entries exist) */}
       {experiences.length > 0 && (
         <div className="cmd-box" id="experience">
-          <div className="cmd-header">/home/experience</div>
+          <div className="cmd-header">/home/whoami/experience</div>
           <div className="text-xs text-on-surface-variant font-mono mb-3">
             the more professional-looking part of this
           </div>
@@ -441,7 +441,7 @@ export default function Home() {
 
       {/* motto & page links */}
       <div className="cmd-box">
-        <div className="cmd-header">/home/motto</div>
+        <div className="cmd-header">/home/whoami/motto</div>
         <div className="space-y-2.5">
           <p className="text-xs text-on-surface-variant font-mono">My life motto</p>
           <blockquote className="text-[14px] italic text-on-surface border-l-2 border-[#75736c] pl-3 py-0.5">
@@ -484,7 +484,7 @@ export default function Home() {
 
       {/* links */}
       <div className="cmd-box" id="links">
-        <div className="cmd-header">/home/links</div>
+        <div className="cmd-header">/home/whoami/links</div>
         <div className="text-xs text-on-surface mb-2 font-mono text-terminal-prompt">links!</div>
         <ul className="space-y-1 text-xs pl-2 font-mono">
           <li className="flex items-center gap-2">
