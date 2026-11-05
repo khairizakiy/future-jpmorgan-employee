@@ -63,7 +63,7 @@ const DEFAULT_PROFILE = {
   linkedin_url: 'https://linkedin.com/in/khairinugroho',
   spotify_url: 'https://open.spotify.com/user/j45vdoajmtkvdq33tunybf9o6?si=3163aa858f2341ab',
   resume_url: '#',
-  motto: 'Precision is quiet; restraint speaks louder than ornamentation.'
+  motto: 'if you like music you like house, you just don't realize it yet'
 }
 
 const DEFAULT_BIO = {
