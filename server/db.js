@@ -228,6 +228,10 @@ export const db = {
       linkedin_url: vals.linkedin_url !== undefined
         ? (vals.linkedin_url ? normalizeSocialUrl(vals.linkedin_url) : null)
         : (current?.linkedin_url ?? null),
+      spotify_url: vals.spotify_url !== undefined
+        ? (vals.spotify_url ? normalizeSocialUrl(vals.spotify_url) : null)
+        : (current?.spotify_url ?? null),
+      motto: vals.motto !== undefined ? vals.motto : (current?.motto ?? null),
       updated_at: new Date().toISOString()
     }
 
@@ -303,7 +307,8 @@ export const db = {
           who_am_i: result.who_am_i,
           what_i_did: result.what_i_did,
           school: result.school,
-          skills: result.skills || payload.skills
+          skills: result.skills || payload.skills,
+          motto: result.motto !== undefined ? result.motto : payload.motto
         }
         db.saveLocalData(local)
       } catch (err) {

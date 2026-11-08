@@ -39,6 +39,7 @@ async function seed() {
     github_url: data.profile.github_url,
     linkedin_url: data.profile.linkedin_url,
     skills: data.profile.skills || [],
+    motto: data.profile.motto,
     updated_at: new Date().toISOString()
   }
 

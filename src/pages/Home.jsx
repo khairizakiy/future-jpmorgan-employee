@@ -203,7 +203,7 @@ export default function Home() {
     spotify_url: 'https://open.spotify.com/user/j45vdoajmtkvdq33tunybf9o6?si=3163aa858f2341ab',
     email: 'khairinugroho@gmail.com',
     resume_url: '#',
-    motto: "if you like music you like house, you just don't realize it yet"
+    motto: 'if you like music, you like house'
   }
 
   const profile = { ...defaultProfile, ...(data?.profile || {}) }
@@ -445,7 +445,7 @@ export default function Home() {
         <div className="space-y-2.5">
           <p className="text-xs text-on-surface-variant font-mono">My life motto</p>
           <blockquote className="text-[14px] italic text-on-surface border-l-2 border-[#75736c] pl-3 py-0.5">
-            “{profile.motto || 'if you like music you like house, you just dont realize it yet'}”
+            “{profile.motto || 'if you like music, you like house'}”
           </blockquote>
           <div className="pt-2">
             <div className="text-[11px] font-mono text-terminal-prompt mb-1.5 flex items-center justify-between">

@@ -1,13 +1,13 @@
 {
   "profile": {
-    "name": "Khairi Nugroho",
-    "hero": "quantitative researcher • batam, id",
-    "headline": "quantitative researcher • batam, id",
-    "email": "khairinugroho@gmail.com",
-    "photo": "https://i.ibb.co/LD4jDhX4/Whats-App-Image-2026-10-25-at-12-01-45-AM.jpg",
+    "name": "Khairi \"Zakiy\" Nugroho",
+    "hero": "vocational high school student • batam, id",
+    "headline": "vocational high school student • batam, id",
+    "email": "khairizakiyn@gmail.com",
+    "photo": "https://jnttmmhomgtpnkpymhfl.supabase.co/storage/v1/object/public/uploads/khairinugroho.jpeg",
     "photo_label": "khairinugroho.jpeg",
     "linkedin_url": "https://linkedin.com/in/khairinugroho",
-    "github_url": "https://github.com/khairinugroho",
+    "github_url": "https://github.com/khairizakiy",
     "instagram_url": "https://instagram.com/khairinugroho",
     "spotify_url": "https://open.spotify.com/user/j45vdoajmtkvdq33tunybf9o6?si=3163aa858f2341ab",
     "resume_url": "#",
@@ -16,15 +16,15 @@
       "Most of my time goes into distributed backends, clean type-safe frontend architecture (TypeScript + Rust), and building tools that run fast without useless computational bloat.",
       "When I'm not pushing commits, I'm usually underneath the chassis of my 2021 VW Tiguan doing suspension tweaks, hunting for obscure vinyl records, or hanging out with my cat Mochi."
     ],
-    "motto": "if you like music you like house, you just don't realize it yet",
-    "who_am_i": "Vocational high school student driven by precision, discipline, and execution. Passionate about Formula 1 strategy, macroeconomics, finance, and market trading.",
-    "what_i_did": "Available as a dependable everyday operator and virtual employee—handling Microsoft Excel data, Word documentation, research summarizing, and Personal Assistant operations.",
-    "school": "Vocational High School Student • Developer & Quantitative Researcher",
+    "motto": "if you like music, you like house",
+    "who_am_i": "vocational high school student driven by precision, discipline, and execution. enthusiast about Formula 1, Quant Firm, Economics.",
+    "what_i_did": "available as a dependable everyday operator and virtual employee—handling microsoft excel data, word documentation, and research summarizing.",
+    "school": "vocational high school student • currently on apprenticeship at improving manufacture",
     "skills": [
-      "Quantitative Research & Macro Strategy",
-      "Financial Modeling & Quant Trading",
-      "Advanced Microsoft Excel & Data Operations",
-      "TypeScript, React, Node.js & Systems Architecture"
+      "LLM Workflow Orchestration & Agentic Pipelines",
+      "Python (Flow Control Tools - Data Structures)",
+      "Financial Modeling & Level 2 Trading",
+      "Microsoft Excel & Data Operations"
     ]
   },
   "skills": [

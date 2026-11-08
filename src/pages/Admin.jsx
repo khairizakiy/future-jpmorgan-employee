@@ -102,7 +102,10 @@ export default function Admin() {
         email: profile.email,
         linkedin_url: profile.linkedin_url,
         github_url: profile.github_url,
-        x_url: profile.instagram_url || profile.x_url || ''
+        x_url: profile.instagram_url || profile.x_url || '',
+        instagram_url: profile.instagram_url || profile.x_url || '',
+        spotify_url: profile.spotify_url || '',
+        motto: profile.motto || ''
       })
 
       await api.updateBio({
@@ -1139,7 +1142,7 @@ export default function Admin() {
                 className="admin-input"
                 value={profile.motto}
                 onChange={(e) => setProfile({ ...profile, motto: e.target.value })}
-                placeholder="Precision is quiet; restraint speaks louder than ornamentation."
+                placeholder="if you like music, you like house"
               />
             </div>
 
