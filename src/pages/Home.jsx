@@ -371,9 +371,6 @@ export default function Home() {
               </div>
             )}
           </div>
-          <div className="text-[10px] font-mono text-center text-terminal-prompt mt-1">
-            github.com/{githubUsername}
-          </div>
         </div>
       </div>
 
