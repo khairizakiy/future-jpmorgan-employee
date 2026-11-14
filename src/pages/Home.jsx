@@ -41,6 +41,14 @@ function parseSkills(raw) {
   return DEFAULT_SKILLS
 }
 
+function extractGithubUsername(url) {
+  if (!url || typeof url !== 'string') return 'khairizakiy'
+  const cleaned = url.trim().replace(/\/+$/, '')
+  const parts = cleaned.split('/')
+  const last = parts[parts.length - 1]
+  return last && !last.includes('.') ? last.replace(/^@/, '') : 'khairizakiy'
+}
+
 function ExperienceLogo({ exp, className = 'w-8 h-8' }) {
   const [hasError, setHasError] = useState(false)
   const logoUrl = exp.logo || exp.image || (exp.initial_bg && (exp.initial_bg.startsWith('http') || exp.initial_bg.startsWith('/uploads')) ? exp.initial_bg : null)
@@ -75,6 +83,8 @@ export default function Home() {
     return null
   })
   const [loading, setLoading] = useState(!data)
+  const [chartLoaded, setChartLoaded] = useState(false)
+  const [chartError, setChartError] = useState(false)
 
   useEffect(() => {
     document.title = 'Khairi Nugroho'
@@ -122,6 +132,10 @@ export default function Home() {
               </div>
               <div className="skeleton h-3 w-20 mx-auto mt-1 rounded-sm"></div>
             </div>
+          </div>
+
+          <div className="mt-4 pt-3.5 border-t border-[#d8d6ce] flex flex-col items-center">
+            <div className="skeleton w-full max-w-[663px] aspect-[663/104] rounded-sm"></div>
           </div>
         </div>
 
@@ -198,7 +212,7 @@ export default function Home() {
     photo: 'https://jnttmmhomgtpnkpymhfl.supabase.co/storage/v1/object/public/uploads/khairinugroho.jpeg',
     photo_label: 'khairinugroho.jpeg',
     linkedin_url: 'https://linkedin.com/in/khairinugroho',
-    github_url: 'https://github.com/khairinugroho',
+    github_url: 'https://github.com/khairizakiy',
     instagram_url: 'https://instagram.com/khairinugroho',
     spotify_url: 'https://open.spotify.com/user/j45vdoajmtkvdq33tunybf9o6?si=3163aa858f2341ab',
     email: 'khairinugroho@gmail.com',
@@ -224,6 +238,8 @@ export default function Home() {
 
   // Pure function parseSkills without any hook violation
   const skillsList = parseSkills(data?.skills || profile?.skills)
+  const githubUrl = profile.github_url || 'https://github.com/khairizakiy'
+  const githubUsername = extractGithubUsername(githubUrl)
 
   return (
     <div className="max-w-[760px] mx-auto">
@@ -309,6 +325,54 @@ export default function Home() {
             <div className="text-[10px] font-mono text-center text-terminal-prompt mt-1">
               {profile.photo_label || 'khairinugroho.jpeg'}
             </div>
+          </div>
+        </div>
+
+        <div className="mt-4 pt-3.5 border-t border-[#d8d6ce] flex flex-col items-center justify-center">
+          <div className="w-full border border-[#75736c] bg-white p-2.5 sm:p-3 rounded-[2px] flex flex-col items-center justify-center">
+            {!chartError ? (
+              <a
+                href={githubUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label={`View ${githubUsername}'s GitHub contribution graph`}
+                className="w-full flex flex-col items-center justify-center focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1b1c18] rounded-[1px]"
+              >
+                {!chartLoaded && (
+                  <div
+                    className="skeleton w-full max-w-[663px] aspect-[663/104] rounded-sm"
+                    role="status"
+                    aria-label="Loading GitHub contribution graph"
+                  />
+                )}
+                <img
+                  src={`https://ghchart.rshah.org/${githubUsername}`}
+                  alt={`${githubUsername}'s GitHub Contribution Graph`}
+                  width="663"
+                  height="104"
+                  className={`w-full max-w-[663px] h-auto block mx-auto transition-opacity duration-200 ${
+                    chartLoaded ? 'opacity-100' : 'opacity-0 h-0 overflow-hidden'
+                  }`}
+                  onLoad={() => setChartLoaded(true)}
+                  onError={() => setChartError(true)}
+                />
+              </a>
+            ) : (
+              <div className="py-3 text-center text-xs font-mono text-on-surface-variant">
+                <span>GitHub contribution graph unavailable right now. </span>
+                <a
+                  href={githubUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-on-surface underline hover:text-black font-semibold"
+                >
+                  View @{githubUsername} on GitHub ↗
+                </a>
+              </div>
+            )}
+          </div>
+          <div className="text-[10px] font-mono text-center text-terminal-prompt mt-1">
+            github.com/{githubUsername}
           </div>
         </div>
       </div>
